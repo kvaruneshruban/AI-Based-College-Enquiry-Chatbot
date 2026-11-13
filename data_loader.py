@@ -1,7 +1,8 @@
 """
 Data Loader Module for AI-Based College Enquiry Chatbot.
 
-Handles loading, validating, and preprocessing FAQ data from CSV.
+Handles loading, validating, and preprocessing FAQ data from CSV,
+as well as dynamic CRUD additions and deletions for knowledge base management.
 """
 
 import os
@@ -87,3 +88,54 @@ def get_questions_by_category(df: pd.DataFrame, category: Optional[str] = None) 
         filtered = df[df["category"].str.lower() == category.lower()]
         return filtered["question"].tolist()
     return df["question"].tolist()
+
+
+def add_faq_entry(filepath: str, category: str, question: str, answer: str) -> pd.DataFrame:
+    """
+    Adds a new FAQ entry to the dataset CSV file and returns the refreshed DataFrame.
+    """
+    clean_cat = (category or "").strip()
+    clean_q = (question or "").strip()
+    clean_a = (answer or "").strip()
+
+    if not clean_cat or not clean_q or not clean_a:
+        raise DataLoaderError("Category, question, and answer cannot be empty.")
+
+    # Ensure demo data tag for consistency
+    if not clean_a.startswith("[DEMO DATA]"):
+        clean_a = f"[DEMO DATA] {clean_a}"
+
+    df = load_faq_data(filepath)
+
+    # Check for duplicate questions
+    if (df["question"].str.lower() == clean_q.lower()).any():
+        raise DataLoaderError(f"An FAQ entry with the question '{clean_q}' already exists.")
+
+    new_row = pd.DataFrame([{
+        "category": clean_cat,
+        "question": clean_q,
+        "answer": clean_a
+    }])
+
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(filepath, index=False)
+    return df
+
+
+def delete_faq_entry(filepath: str, question_to_delete: str) -> pd.DataFrame:
+    """
+    Deletes an FAQ entry from the dataset CSV file by exact question string.
+    """
+    clean_q = (question_to_delete or "").strip()
+    df = load_faq_data(filepath)
+
+    mask = df["question"].str.strip().str.lower() == clean_q.lower()
+    if not mask.any():
+        raise DataLoaderError(f"Question '{clean_q}' not found in knowledge base.")
+
+    df = df[~mask].reset_index(drop=True)
+    if df.empty:
+        raise DataLoaderError("Cannot delete the last remaining FAQ in the knowledge base.")
+
+    df.to_csv(filepath, index=False)
+    return df

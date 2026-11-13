@@ -3,14 +3,34 @@ AI-Based College Enquiry Chatbot - Streamlit User Interface.
 
 A modern, responsive, and intuitive web interface designed with an executive
 blue-and-white theme, two-column interactive layout, quick FAQ shortcuts,
-and real-time NLP match diagnostics.
+real-time NLP match diagnostics, typo-resilience, voice assistant capabilities,
+admission lead capture, and an administrative desk portal.
 """
 
 import os
+import json
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
-from data_loader import load_faq_data, get_categories, DataLoaderError
+from data_loader import (
+    load_faq_data,
+    get_categories,
+    DataLoaderError,
+    add_faq_entry,
+    delete_faq_entry
+)
 from chatbot import CollegeChatbot
+from lead_manager import (
+    save_admission_lead,
+    get_leads_df,
+    update_lead_status,
+    log_feedback,
+    get_feedback_df,
+    get_unanswered_df,
+    resolve_unanswered_query,
+    get_analytics_summary
+)
+from generate_prospectus import create_prospectus, PROSPECTUS_PATH
 
 # ---------------------------------------------------------
 # Page Configuration
@@ -141,7 +161,6 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 12px;
-        /* Realistic Multi-Layer Extruded 3D Text Effect */
         text-shadow: 
             0 1px 0 #93C5FD,
             0 2px 0 #60A5FA,
@@ -155,86 +174,34 @@ st.markdown("""
         transform: perspective(600px) translateZ(0);
         transition: transform 0.2s ease, text-shadow 0.2s ease;
     }
-    .brand-title:hover {
-        transform: perspective(600px) translateY(-2px);
-        text-shadow: 
-            0 1px 0 #BFDBFE,
-            0 2px 0 #93C5FD,
-            0 3px 0 #60A5FA,
-            0 4px 0 #3B82F6,
-            0 5px 0 #2563EB,
-            0 6px 0 #1D4ED8,
-            0 7px 0 #1E40AF,
-            0 8px 3px rgba(15, 23, 42, 0.45),
-            0 11px 10px rgba(15, 23, 42, 0.38),
-            0 18px 22px rgba(15, 23, 42, 0.30);
-    }
     .brand-subtitle {
-        margin: 6px 0 0 0;
-        font-size: 0.95rem;
-        color: #BFDBFE;
+        color: #E2E8F0;
+        font-size: 1.02rem;
+        margin-top: 6px;
         font-weight: 400;
     }
-    .badge-container {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    .hero-badge {
-        background: rgba(255, 255, 255, 0.15);
-        backdrop-filter: blur(8px);
-        color: #FFFFFF;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        padding: 5px 12px;
-        border-radius: 9999px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
 
-    /* 3D Section Headings */
-    .heading-3d {
-        font-family: 'Righteous', 'Montserrat', sans-serif !important;
-        font-size: 1.35rem;
-        letter-spacing: 0.5px;
-        color: #1E3A8A !important;
-        text-shadow: 
-            1px 1px 0 #DBEAFE,
-            2px 2px 0 #BFDBFE,
-            3px 3px 0 #93C5FD,
-            4px 4px 3px rgba(30, 58, 138, 0.20);
-    }
-
-    /* Card Panels - Translucent Glassmorphism */
+    /* Cards & Containers */
     .modern-card {
-        background: rgba(255, 255, 255, 0.75) !important;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(226, 232, 240, 0.85);
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(226, 232, 240, 0.9);
         border-radius: 14px;
-        padding: 18px 20px;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
-        transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-    }
-    .modern-card:hover {
-        background: rgba(255, 255, 255, 0.90) !important;
-        border-color: #CBD5E1;
-        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.05);
+        backdrop-filter: blur(10px);
     }
     .card-title {
-        font-size: 1.05rem;
+        font-size: 1.02rem;
         font-weight: 700;
-        color: #0F172A;
-        margin-bottom: 8px;
+        color: #1E3A8A;
+        margin-bottom: 10px;
         display: flex;
         align-items: center;
         gap: 8px;
     }
 
-    /* Tag and Badge styles */
+    /* Diagnostics Pills */
     .category-pill {
         display: inline-flex;
         align-items: center;
@@ -246,7 +213,6 @@ st.markdown("""
         border: 1px solid #BFDBFE;
         padding: 3px 10px;
         border-radius: 9999px;
-        margin-top: 6px;
     }
     .confidence-pill {
         display: inline-flex;
@@ -257,6 +223,19 @@ st.markdown("""
         background-color: #ECFDF5;
         color: #047857;
         border: 1px solid #A7F3D0;
+        padding: 3px 10px;
+        border-radius: 9999px;
+        margin-left: 6px;
+    }
+    .fuzzy-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background-color: #FEF3C7;
+        color: #92400E;
+        border: 1px solid #FDE68A;
         padding: 3px 10px;
         border-radius: 9999px;
         margin-left: 6px;
@@ -330,17 +309,6 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* Quick starter chips */
-    .starter-header {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: #334155;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
     /* Modern Footer */
     .app-footer {
         text-align: center;
@@ -367,6 +335,13 @@ HOSTEL_IMG = os.path.join(ASSETS_DIR, "hostel.jpg")
 SPORTS_IMG = os.path.join(ASSETS_DIR, "sports.jpg")
 STUDENTS_HERO_IMG = os.path.join(ASSETS_DIR, "students_hero.jpg")
 STUDENTS_GROUP_IMG = os.path.join(ASSETS_DIR, "students_group.jpg")
+
+# Ensure Official Prospectus PDF exists
+if not os.path.exists(PROSPECTUS_PATH):
+    try:
+        create_prospectus()
+    except Exception:
+        pass
 
 # ---------------------------------------------------------
 # Chatbot Model Initialization
@@ -399,7 +374,11 @@ if "messages" not in st.session_state:
                 "👋 Hello! Welcome to the **Apex Institute Campus Helpdesk & AI Enquiry Assistant**.\n\n"
                 "I am here to help you explore verified information regarding **Admissions, Courses, "
                 "Fee Schedules, Hostel Facilities, Placement Records, and Campus Contacts**.\n\n"
-                "You can type your enquiry below or pick any quick topic from the **Interactive Campus Hub** on the right! 🎓"
+                "💡 **New Features:**\n"
+                "- 🔤 **Typo-tolerant Search**: Even if you misspell words like 'admision' or 'scolorship', I'll find the right answer!\n"
+                "- 🎙️ **Voice Query & Read Aloud**: Speak your questions or listen to audio responses.\n"
+                "- 📝 **Direct Admission Leads**: Use the **Apply / Callback** tab on the right to connect with our counseling desk.\n"
+                "- 📄 **Download Official Prospectus**: Get the complete 2026-27 brochure from the sidebar."
             ),
             "meta": None
         }
@@ -462,7 +441,21 @@ with st.sidebar:
                 unsafe_allow_html=True
             )
 
-        st.caption(f"Active Threshold: **{threshold:.2f}** | Engine: **TF-IDF + Cosine**")
+        st.caption(f"Active Threshold: **{threshold:.2f}** | Engine: **TF-IDF + Fuzzy NLP**")
+
+    st.markdown("---")
+    st.markdown("#### 📄 **Official Prospectus**")
+    if os.path.exists(PROSPECTUS_PATH):
+        with open(PROSPECTUS_PATH, "rb") as f_pdf:
+            pdf_bytes = f_pdf.read()
+        st.download_button(
+            "📥 Download 2026-27 Prospectus (PDF)",
+            data=pdf_bytes,
+            file_name="Apex_College_Prospectus_2026.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            help="Download comprehensive courses, fee structure, hostel rules, and placement report"
+        )
 
     st.markdown("---")
     st.markdown("#### 🛠️ **Session Tools**")
@@ -501,7 +494,7 @@ with st.sidebar:
     st.markdown(
         """
         <div style="font-size: 0.78rem; color: #64748B; line-height: 1.5;">
-            <strong>Apex Institute of Technology</strong><br>
+            <strong>Apex Institute of Technology & Science</strong><br>
             Knowledge Campus, Sector 4, Education City<br>
             📞 Helpline: +91 98765 43210<br>
             ✉️ Email: admissions@demo-college.edu
@@ -587,21 +580,23 @@ st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 # ---------------------------------------------------------
 col_chat, col_hub = st.columns([1.65, 1.0], gap="large")
 
-# Track if user clicked any suggested button
 clicked_query = None
 
 # =========================================================
-# Right Column: Interactive Campus Hub & Quick Access Panel
+# Right Column: Interactive Campus Hub & Management Center
 # =========================================================
 with col_hub:
-    tab_faqs, tab_gallery, tab_campus, tab_contacts, tab_logs = st.tabs([
-        "💡 Quick Questions",
-        "📸 Campus Gallery",
+    tab_faqs, tab_leads, tab_admin, tab_gallery, tab_campus, tab_contacts, tab_logs = st.tabs([
+        "💡 FAQs",
+        "📝 Apply",
+        "🔐 Staff Desk",
+        "📸 Gallery",
         "🏛️ Highlights",
         "📞 Helpdesk",
-        "📊 Session Logs"
+        "📊 Logs"
     ])
 
+    # 1. Quick Questions Tab
     with tab_faqs:
         st.markdown(
             """
@@ -642,6 +637,141 @@ with col_hub:
         if st.button("📌 Central library operating hours?", key="btn_q11", use_container_width=True):
             clicked_query = "What are the library timings and working hours?"
 
+    # 2. Admission Lead Capture Form
+    with tab_leads:
+        st.markdown(
+            """
+            <div class="card-title">📝 Apply Online / Request Counselor Callback</div>
+            <div style="font-size:0.83rem; color:#475569; margin-bottom:12px;">
+                Fill out this quick form. Our admissions officer will contact you within 24 hours with cutoff counseling & fee guidance.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        with st.form("lead_form", clear_on_submit=True):
+            lead_name = st.text_input("Full Name *", placeholder="e.g. Anand Kumar")
+            lead_phone = st.text_input("Mobile / WhatsApp Number *", placeholder="e.g. 9876543210")
+            lead_email = st.text_input("Email Address", placeholder="e.g. anand@example.com")
+            lead_course = st.selectbox("Program of Interest *", [
+                "B.Tech Computer Science & Engineering",
+                "B.Tech Artificial Intelligence & Data Science",
+                "B.Tech Electronics & Communication",
+                "B.Tech Mechanical Engineering",
+                "M.Tech Computer Science",
+                "Master of Business Administration (MBA)",
+                "Master of Computer Applications (MCA)"
+            ])
+            lead_cutoff = st.text_input("12th / Diploma Cutoff Marks", placeholder="e.g. 185 / 200 or 86%")
+            lead_msg = st.text_area("Specific Question / Preferences", placeholder="e.g. Hostel accommodation and sports quota inquiry...")
+
+            lead_submitted = st.form_submit_button("🚀 Submit Admission Enquiry", use_container_width=True, type="primary")
+            if lead_submitted:
+                lead_res = save_admission_lead(
+                    name=lead_name,
+                    email=lead_email,
+                    phone=lead_phone,
+                    course=lead_course,
+                    cutoff=lead_cutoff,
+                    message=lead_msg
+                )
+                if lead_res["status"] == "success":
+                    st.success(f"🎉 **{lead_res['message']}**\n\nApplication Reference: **`{lead_res['ref_no']}`**")
+                    st.balloons()
+                else:
+                    st.error(f"⚠️ {lead_res['message']}")
+
+    # 3. Staff & Admin Portal (PIN: admin123)
+    with tab_admin:
+        st.markdown(
+            """
+            <div class="card-title">🔐 Admissions Staff Desk</div>
+            <div style="font-size:0.83rem; color:#475569; margin-bottom:10px;">
+                Access leads, identify unanswered student queries, and manage the live FAQ knowledge base.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        admin_pin = st.text_input("Staff Security PIN:", type="password", key="admin_pin_input", help="Demo access: admin123")
+        if admin_pin == "admin123":
+            st.success("🔓 Authenticated as Campus Helpdesk Officer")
+            
+            desk_analytics, desk_leads, desk_unanswered, desk_crud = st.tabs([
+                "📊 Overview", "📋 Leads", "❓ Unanswered", "📚 FAQ CRUD"
+            ])
+
+            with desk_analytics:
+                analytics_data = get_analytics_summary()
+                m_c1, m_c2 = st.columns(2)
+                with m_c1:
+                    st.metric("Total Leads", analytics_data["total_leads"])
+                    st.metric("Unresolved Questions", analytics_data["unresolved_queries"])
+                with m_c2:
+                    st.metric("Pending Leads", analytics_data["pending_leads"])
+                    st.metric("Satisfaction Rate", f"{analytics_data['satisfaction_rate']}%")
+
+            with desk_leads:
+                all_leads_df = get_leads_df()
+                if not all_leads_df.empty:
+                    st.dataframe(all_leads_df, use_container_width=True)
+                    csv_bytes = all_leads_df.to_csv(index=False).encode("utf-8")
+                    st.download_button("📥 Export Leads CSV", csv_bytes, "admission_leads.csv", "text/csv", use_container_width=True)
+
+                    st.markdown("##### ✏️ Update Lead Status")
+                    u_col1, u_col2 = st.columns([1.5, 1])
+                    with u_col1:
+                        target_ref = st.selectbox("Select Ref No:", all_leads_df["ref_no"].tolist())
+                    with u_col2:
+                        target_stat = st.selectbox("New Status:", ["Pending", "Contacted", "Counseling Scheduled", "Enrolled", "Closed"])
+                    if st.button("Update Status", use_container_width=True):
+                        update_lead_status(target_ref, target_stat)
+                        st.success(f"Status for {target_ref} updated to {target_stat}")
+                        st.rerun()
+                else:
+                    st.info("No admission leads registered yet.")
+
+            with desk_unanswered:
+                unans_df = get_unanswered_df()
+                if not unans_df.empty:
+                    st.dataframe(unans_df, use_container_width=True)
+                    st.caption("These queries triggered a fallback response. Add them to the Knowledge Base below to improve bot coverage.")
+                else:
+                    st.info("No unanswered questions logged yet. High accuracy!")
+
+            with desk_crud:
+                st.markdown("##### ➕ Add New FAQ to Knowledge Base")
+                with st.form("crud_add_form"):
+                    crud_cat = st.selectbox("Category:", categories[1:] + ["General enquiries"])
+                    crud_q = st.text_input("Student Question:")
+                    crud_a = st.text_area("Verified Official Answer:")
+                    crud_btn = st.form_submit_button("Add to Knowledge Base", type="primary")
+                    if crud_btn:
+                        try:
+                            add_faq_entry(DATASET_PATH, crud_cat, crud_q, crud_a)
+                            st.cache_resource.clear()
+                            resolve_unanswered_query(crud_q)
+                            st.success("New FAQ added successfully! Chatbot re-indexed.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+                st.markdown("##### 🗑️ Remove Outdated FAQ")
+                q_list = faq_df["question"].tolist()
+                del_target = st.selectbox("Select FAQ to Remove:", q_list)
+                if st.button("🗑️ Confirm Delete FAQ", type="secondary"):
+                    try:
+                        delete_faq_entry(DATASET_PATH, del_target)
+                        st.cache_resource.clear()
+                        st.success("FAQ deleted successfully! Chatbot re-indexed.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+        elif admin_pin:
+            st.error("Incorrect PIN. Please use demo PIN: admin123")
+        else:
+            st.info("Enter Administrator PIN (Default: `admin123`) to access leads, logs, and FAQ manager.")
+
+    # 4. Campus Gallery Tab
     with tab_gallery:
         st.markdown(
             """
@@ -666,6 +796,7 @@ with col_hub:
         if os.path.exists(SPORTS_IMG):
             st.image(SPORTS_IMG, caption="⚽ Olympic-Grade Sports Arena & Athletic Complex", use_container_width=True)
 
+    # 5. Highlights Tab
     with tab_campus:
         if os.path.exists(CAMPUS_MAIN_IMG):
             st.image(CAMPUS_MAIN_IMG, caption="Apex Knowledge Campus (50+ Acres Green Infrastructure)", use_container_width=True)
@@ -699,15 +830,16 @@ with col_hub:
             unsafe_allow_html=True
         )
 
+    # 6. Helpdesk Tab
     with tab_contacts:
         if os.path.exists(CAMPUS_MAIN_IMG):
-            st.image(CAMPUS_MAIN_IMG, caption="Admissions Cell & Counseling Desk (Ground Floor, Block A)", use_container_width=True)
+            st.image(CAMPUS_MAIN_IMG, caption="Admissions Cell & Counseling Desk (Block A)", use_container_width=True)
 
         st.markdown(
             """
             <div class="modern-card">
                 <div class="card-title">📞 Admissions Desk</div>
-                <p style="font-size:0.86rem; color:#475569; margin: 4px 0 10px 0;">Reach out directly to the counseling and admission team:</p>
+                <p style="font-size:0.86rem; color:#475569; margin: 4px 0 10px 0;">Reach out directly to the counseling team:</p>
                 <div class="info-row"><span class="info-label">Helpline:</span><span class="info-val">+91 98765 43210</span></div>
                 <div class="info-row"><span class="info-label">Landline:</span><span class="info-val">0123-456789</span></div>
                 <div class="info-row"><span class="info-label">Email:</span><span class="info-val">admissions@demo-college.edu</span></div>
@@ -726,6 +858,7 @@ with col_hub:
             unsafe_allow_html=True
         )
 
+    # 7. Session Logs Tab
     with tab_logs:
         if chatbot_ready:
             logs_df = chatbot.get_logs_df()
@@ -743,7 +876,7 @@ with col_chat:
     st.markdown(
         f"""
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-            <div class="heading-3d">
+            <div class="card-title" style="margin:0;">
                 💬 Student Consultation Stream
             </div>
             <div style="font-size:0.8rem; background:#F1F5F9; color:#475569; padding:3px 10px; border-radius:9999px; font-weight:600;">
@@ -755,27 +888,34 @@ with col_chat:
     )
 
     # Render Conversation Messages
-    for msg in st.session_state.messages:
+    last_user_query = ""
+    for idx, msg in enumerate(st.session_state.messages):
         if msg["role"] == "user":
+            last_user_query = msg["content"]
             with st.chat_message("user", avatar="🧑‍🎓"):
                 st.markdown(f"**{msg['content']}**")
         else:
             with st.chat_message("assistant", avatar="🤖"):
                 st.markdown(msg["content"])
+                
+                # Diagnostics & Metadata
                 if msg.get("meta"):
                     meta = msg["meta"]
                     status = meta.get("status")
                     cat = meta.get("category")
                     conf = meta.get("confidence", 0.0)
                     matched_q = meta.get("matched_question")
+                    is_fuzzy = meta.get("is_fuzzy", False)
 
                     meta_html = ""
                     if cat and cat not in ["Greeting", "Gratitude", "Farewell"]:
                         meta_html += f'<span class="category-pill">📂 Category: {cat}</span> '
                     if status == "matched":
                         meta_html += f'<span class="confidence-pill">🎯 Match: {int(conf * 100)}%</span> '
+                        if is_fuzzy:
+                            meta_html += '<span class="fuzzy-pill">⚡ Auto-Corrected / Typo Resilient</span> '
                         if matched_q:
-                            meta_html += f'<div class="matched-prompt-hint">💡 Matched Question: <em>"{matched_q}"</em></div>'
+                            meta_html += f'<div class="matched-prompt-hint">💡 Matched FAQ: <em>"{matched_q}"</em></div>'
                     elif status == "fallback":
                         meta_html += f'<span class="fallback-pill">⚠️ Low Similarity ({int(conf * 100)}%) - Fallback Triggered</span>'
                     elif status in ["greeting", "gratitude", "farewell"]:
@@ -784,7 +924,29 @@ with col_chat:
                     if meta_html:
                         st.markdown(meta_html, unsafe_allow_html=True)
 
-    # Visual Campus Highlights Showcase (Fills empty space with college photos)
+                # Action Bar: Audio Read Aloud & Student Feedback Rating
+                if idx > 0 and msg["content"]:
+                    clean_text_for_js = json.dumps(msg["content"].replace("[DEMO DATA]", "").strip())
+                    
+                    c_act1, c_act2, c_act3, c_act4 = st.columns([1.8, 1, 1, 5])
+                    with c_act1:
+                        # Native Browser Text-to-Speech
+                        components.html(f"""
+                        <button onclick="window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance({clean_text_for_js}); u.rate=1.0; window.speechSynthesis.speak(u);"
+                                style="background:#EFF6FF; border:1px solid #BFDBFE; color:#1D4ED8; font-size:11px; font-weight:600; padding:4px 8px; border-radius:6px; cursor:pointer;">
+                            🔊 Listen
+                        </button>
+                        """, height=30)
+                    with c_act2:
+                        if st.button("👍", key=f"fb_up_{idx}", help="Helpful response"):
+                            log_feedback(query=last_user_query, answer=msg["content"], rating="positive")
+                            st.toast("Thank you for your feedback! 👍")
+                    with c_act3:
+                        if st.button("👎", key=f"fb_down_{idx}", help="Needs improvement"):
+                            log_feedback(query=last_user_query, answer=msg["content"], rating="negative")
+                            st.toast("Feedback noted! Our counseling desk will review this. 👎")
+
+    # Campus Highlights Expander
     with st.expander("📸 **Virtual Campus Tour & Facilities Showcase (Click to View)**", expanded=(len(st.session_state.messages) <= 2)):
         c_p1, c_p2, c_p3 = st.columns(3)
         with c_p1:
@@ -815,8 +977,42 @@ with col_chat:
                 unsafe_allow_html=True
             )
 
+    # Voice Assistant Speech-to-Text Bar
+    components.html("""
+    <script>
+    function startVoiceInput() {
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Speech recognition is supported in Google Chrome, Edge, and modern browsers.");
+            return;
+        }
+        var recognition = new SpeechRecognition();
+        recognition.lang = 'en-IN';
+        recognition.interimResults = false;
+        var statusEl = document.getElementById('voice-status');
+        statusEl.innerText = "🎙️ Listening... Speak your question now!";
+        recognition.start();
+
+        recognition.onresult = function(event) {
+            var transcript = event.results[0][0].transcript;
+            statusEl.innerText = "✅ Transcribed: '" + transcript + "' (Please paste or type into chat input below)";
+            navigator.clipboard.writeText(transcript);
+        };
+        recognition.onerror = function(event) {
+            statusEl.innerText = "❌ Mic: " + event.error + ". Click again to retry.";
+        };
+    }
+    </script>
+    <div style="display:flex; align-items:center; gap:10px; font-family:'Plus Jakarta Sans', sans-serif; background:#F8FAFC; padding:6px 12px; border-radius:10px; border:1px solid #E2E8F0; margin-bottom:4px;">
+        <button onclick="startVoiceInput()" style="background:#2563EB; color:#FFFFFF; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+            🎙️ Speak Enquiry
+        </button>
+        <span id="voice-status" style="font-size:11.5px; color:#64748B;">Click to speak into microphone (Auto-copies to clipboard)</span>
+    </div>
+    """, height=44)
+
     # Chat Input Box
-    user_input = st.chat_input("Type your question here (e.g. 'What is the B.Tech fee?', 'Hostel rules', 'Placement packages')...")
+    user_input = st.chat_input("Type or paste your question (e.g. 'B.Tech fees', 'hostal rules', 'scholarship eligibility', 'placement stats')...")
 
 # ---------------------------------------------------------
 # Handle Query Processing
@@ -898,7 +1094,7 @@ with st.container():
         """
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px;">
             <div>
-                <h3 class="heading-3d" style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                <h3 class="card-title" style="margin: 0; font-size: 1.2rem;">
                     🎮 Apex Campus Trivia Challenge
                 </h3>
                 <p style="margin: 4px 0 0 0; color: #64748B; font-size: 0.9rem;">
@@ -970,7 +1166,6 @@ with st.container():
             unsafe_allow_html=True
         )
 
-        # Render 4 options in a 2x2 grid
         col_o1, col_o2 = st.columns(2)
         opts = q_data["options"]
 
@@ -991,7 +1186,6 @@ with st.container():
                         st.balloons()
                     st.rerun()
 
-        # Display answer feedback if answered
         if st.session_state.game_answered:
             user_choice = st.session_state.game_selected
             correct_ans = q_data["answer"]
@@ -1001,7 +1195,6 @@ with st.container():
             else:
                 st.error(f"❌ **Not quite!** You picked *{user_choice}*. The correct answer is **{correct_ans}**.\n\n💡 *{q_data['fact']}*")
 
-            # Next Question / Finish Button
             col_n1, col_n2, col_n3 = st.columns([1, 1.2, 1])
             with col_n2:
                 btn_label = "🏆 View Final Score" if curr_idx == total_q - 1 else "➡️ Next Question"
@@ -1023,7 +1216,7 @@ st.markdown(
     """
     <div class="app-footer">
         <strong>Apex Institute AI-Based College Enquiry Chatbot</strong> • Streamlit Modern Interface<br>
-        Engineered with Natural Language Processing (TF-IDF & Cosine Similarity) • Safe Academic Demonstration Data
+        Engineered with Natural Language Processing (TF-IDF & Fuzzy Typo Tolerance) • Safe Academic Demonstration Data
     </div>
     """,
     unsafe_allow_html=True
