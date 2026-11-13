@@ -2,9 +2,9 @@
 gatherUsageStats = false
 
 [theme]
-primaryColor = "#1E40AF"
-backgroundColor = "#F8FAFC"
-secondaryBackgroundColor = "#EFF6FF"
+primaryColor = "#1A56DB"
+backgroundColor = "#00000000"
+secondaryBackgroundColor = "#00000000"
 textColor = "#0F172A"
 font = "sans serif"
 
