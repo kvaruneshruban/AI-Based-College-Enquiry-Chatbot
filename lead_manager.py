@@ -132,8 +132,13 @@ def log_unanswered_query(query: str, attempted_score: float, suggested_category:
     }
 
     df = get_unanswered_df()
-    # Avoid logging identical query repeatedly in same session
     if not df.empty and (df["query"].str.lower() == clean_q.lower()).any():
+        # Update existing record back to Unresolved if re-queried
+        mask = df["query"].str.lower() == clean_q.lower()
+        df.loc[mask, "timestamp"] = timestamp
+        df.loc[mask, "attempted_score"] = round(attempted_score, 4)
+        df.loc[mask, "status"] = "Unresolved"
+        df.to_csv(UNANSWERED_FILE, index=False)
         return
 
     df = pd.concat([df, pd.DataFrame([entry])], ignore_index=True)

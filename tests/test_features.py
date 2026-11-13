@@ -93,8 +93,10 @@ def test_feedback_logging_and_analytics():
 # -------------------------------------------------------------
 # 3. Test Unanswered Query Logger
 # -------------------------------------------------------------
+import uuid
+
 def test_unanswered_query_logging():
-    test_q = f"What is the policy for autonomous drone club 2026?"
+    test_q = f"What is the policy for autonomous drone club {uuid.uuid4()}?"
     log_unanswered_query(test_q, attempted_score=0.12, suggested_category="General enquiries")
 
     df = get_unanswered_df()
