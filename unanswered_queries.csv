@@ -1,5 +1,5 @@
 timestamp,query,attempted_score,suggested_category,status
-2026-11-14 12:27:37,How do I bake a chocolate cake with strawberry frosting?,0.0,General enquiries,Unresolved
+2026-11-14 12:32:06,How do I bake a chocolate cake with strawberry frosting?,0.0,General enquiries,Unresolved
 2026-11-13 11:19:30,What is the policy for autonomous drone club 2026?,0.12,General enquiries,Resolved
 2026-11-13 11:23:15,What is the policy for autonomous drone club ca52da41-e920-4b62-a532-16cdfd65bf17?,0.12,General enquiries,Resolved
 2026-11-13 11:24:05,What is the policy for autonomous drone club afc61d50-215c-48bb-88df-3eced7f600eb?,0.12,General enquiries,Resolved
@@ -30,3 +30,6 @@ timestamp,query,attempted_score,suggested_category,status
 2026-11-14 12:15:41,What is the policy for autonomous drone club 61e906c3-fc41-4148-b8f2-1f06ea07ccaf?,0.12,General enquiries,Resolved
 2026-11-14 12:16:13,What is the policy for autonomous drone club 8315651e-7f9b-497d-a810-d50f870fcef8?,0.12,General enquiries,Resolved
 2026-11-14 12:27:37,What is the policy for autonomous drone club ff3cdb2c-1d02-4452-8ab2-47065686cb40?,0.12,General enquiries,Resolved
+2026-11-14 12:30:09,What is the policy for autonomous drone club b91249f9-fce9-4e1f-a144-7b72cf7b2e05?,0.12,General enquiries,Resolved
+2026-11-14 12:32:07,What is the policy for autonomous drone club d218bd09-4ced-403b-8723-bdc20a112844?,0.12,General enquiries,Resolved
+2026-11-14 12:34:52,who was the founder,0.0,All Categories,Unresolved

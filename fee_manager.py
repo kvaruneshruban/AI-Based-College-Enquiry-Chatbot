@@ -191,8 +191,8 @@ def is_fee_enquiry(query: str) -> bool:
     if "fee structure" in q_lower or "complete fee" in q_lower or "all fees" in q_lower or "fee list" in q_lower:
         return True
 
-    # 4. Detail inquiries specifically asking about fee schedules or standalone "more details"
-    if q_lower.strip() in ["more details", "more detail", "fee details", "fee detail", "all fee details"]:
+    # 4. Detail inquiries specifically asking about fee schedules
+    if q_lower.strip() in ["fee details", "fee detail", "all fee details", "fee structure details", "tuition details"]:
         return True
 
     return False
@@ -239,12 +239,12 @@ def generate_smart_fee_response(
             "These are sample fees for demonstration purposes."
         )
 
-    # Priority Check 2: Explicit Complete Fee Structure or All Department Fees or More Details
+    # Priority Check 2: Explicit Complete Fee Structure or All Department Fees
     elif bool(
         re.search(r"\b(complete|full|entire|whole|all)\s+(fee|fees|fee structure|structure)\b", q_lower)
         or re.search(r"\b(fee structure|all department fees?|all courses? fees?|all branches? fees?)\b", q_lower)
-        or any(k in q_lower for k in ["more details", "more detail", "fee details", "fee detail", "all details", "full details", "give details", "more info"])
-        or q_lower.strip() in ["fee structure", "fees structure", "give me fee structure", "give me the complete fee structure", "fees", "fee", "college fees", "details", "more details"]
+        or any(k in q_lower for k in ["fee details", "fee detail", "all fee details"])
+        or q_lower.strip() in ["fee structure", "fees structure", "give me fee structure", "give me the complete fee structure", "fees", "fee", "college fees", "fee details"]
     ):
         specific_answer = (
             "Hello! 😊 Sure, here is the overview of our college fees and tuition schedules.\n\n"

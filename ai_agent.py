@@ -251,25 +251,39 @@ def resolve_followup_query(query: str, history: List[Dict[str, Any]]) -> str:
         or clean_q in ["explain more", "ok explain more", "tell me more", "more details", "more detail", "details", "explain", "more"]
     )
     if is_elaboration:
+        # Check specific topics based on last category or last user query first
+        user_lower = last_user_msg.lower()
+        cat_lower = last_cat.lower()
         combined = (last_cat + " " + last_q + " " + last_user_msg + " " + last_bot_msg).lower()
-        if any(k in combined for k in ["college name", "institution", "who are you", "introduce", "about college", "vr college of engineering"]):
+
+        if "college name" in cat_lower or any(k in user_lower for k in ["college name", "your college name", "name of your", "which college", "introduce"]):
             return "Can you introduce your college?"
-        elif any(k in combined for k in ["course", "b.tech", "degree", "m.tech", "program", "department", "cse", "ece", "mech", "civil", "eee", "it"]):
+        elif any(k in user_lower for k in ["course", "b.tech", "degree", "m.tech", "branch"]) or "courses" in cat_lower or "course" in cat_lower:
             return "What undergraduate courses are offered?"
-        elif any(k in combined for k in ["admission", "apply", "eligibility", "cutoff"]):
-            return "What is the eligibility criteria for B.Tech admission?"
-        elif any(k in combined for k in ["fee", "tuition", "scholarship", "cost"]):
+        elif any(k in user_lower for k in ["fee", "tuition", "cost", "scholarship"]) or "fee" in cat_lower:
             return "What is the annual tuition fee for B.Tech?"
-        elif any(k in combined for k in ["hostel", "mess", "curfew", "room"]):
+        elif any(k in user_lower for k in ["hostel", "mess", "room"]) or "hostel" in cat_lower:
             return "Are hostel facilities available for boys and girls?"
-        elif any(k in combined for k in ["placement", "package", "recruitment", "salary", "company"]):
+        elif any(k in user_lower for k in ["placement", "package", "salary", "recruit"]) or "placement" in cat_lower:
             return "What was the highest and average salary package in recent placements?"
-        elif any(k in combined for k in ["library", "book"]):
+        elif any(k in user_lower for k in ["admission", "apply", "eligib"]) or "admission" in cat_lower:
+            return "What is the eligibility criteria for B.Tech admission?"
+        elif any(k in user_lower for k in ["library", "book"]) or "library" in cat_lower:
             return "What are the library timings and working hours?"
-        elif any(k in combined for k in ["transport", "bus"]):
+        elif any(k in user_lower for k in ["transport", "bus"]) or "transport" in cat_lower:
             return "What bus facilities are available?"
-        elif any(k in combined for k in ["location", "address", "where"]):
+        elif any(k in user_lower for k in ["location", "address", "where"]) or "location" in cat_lower:
             return "Where is your college located?"
+        elif "course" in combined or "b.tech" in combined or "degree" in combined:
+            return "What undergraduate courses are offered?"
+        elif "admission" in combined or "eligibility" in combined:
+            return "What is the eligibility criteria for B.Tech admission?"
+        elif "fee" in combined or "scholarship" in combined:
+            return "What is the annual tuition fee for B.Tech?"
+        elif "hostel" in combined:
+            return "Are hostel facilities available for boys and girls?"
+        elif "placement" in combined:
+            return "What was the highest and average salary package in recent placements?"
         else:
             return "What undergraduate courses are offered?"
 
