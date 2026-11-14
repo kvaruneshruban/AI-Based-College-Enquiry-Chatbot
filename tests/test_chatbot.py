@@ -97,7 +97,7 @@ def test_admission_enquiry(bot):
 def test_fee_enquiry(bot):
     res = bot.get_response("How much is the annual tuition fee for B.Tech?")
     assert res["status"] == "matched"
-    assert "fee" in res["answer"].lower() or "85,000" in res["answer"]
+    assert "fee" in res["answer"].lower() or "75,000" in res["answer"]
     assert res["category"] == "Fees"
     assert res["confidence"] >= 0.25
 

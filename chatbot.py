@@ -1,8 +1,9 @@
 """
 Chatbot Module for AI-Based College Enquiry Chatbot.
 
-Implements TF-IDF vectorization, Cosine Similarity matching, greeting handling,
-gratitude detection, fallback responses, fuzzy typo-tolerance, and interaction logging.
+Implements TF-IDF vectorization, Cosine Similarity matching, conversational intent handling,
+gratitude detection, fallback responses, fuzzy typo-tolerance, multi-turn conversation memory,
+and ChatGPT-like AI conversational responses via Google Gemini with local friendly fallbacks.
 """
 
 import re
@@ -13,6 +14,15 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from lead_manager import log_unanswered_query
+from fee_manager import is_fee_enquiry, generate_smart_fee_response
+from intent_detector import classify_intent, get_intent_response, Intent
+from ai_agent import (
+    resolve_followup_query,
+    is_ai_available,
+    generate_llm_response,
+    generate_local_friendly_response,
+    get_topic_visual
+)
 
 # Standard patterns for conversational intents
 GREETING_PATTERNS = [
@@ -31,8 +41,8 @@ FAREWELL_PATTERNS = [
 
 DEFAULT_FALLBACK_MESSAGE = (
     "I am sorry, but I couldn't find verified information regarding your enquiry in the college database. "
-    "Please try rephrasing your question or contact the College Admissions / Administrative Desk at "
-    "+91 98765 43210 or email admissions@demo-college.edu. [DEMO DATA]"
+    "Please try rephrasing your question or contact the VR College of Engineering Admissions / Administrative Desk at "
+    "+91 98765 43210 or email admissions@vrcollege.edu. [DEMO DATA]"
 )
 
 
@@ -44,8 +54,7 @@ def preprocess_text(text: str) -> str:
     and student queries without heavy external libraries.
     """
     text = text.lower().strip()
-    
-    # Common academic typos and abbreviations
+
     typo_replacements = {
         r"\badmision\b": "admission",
         r"\badmisn\b": "admission",
@@ -98,7 +107,7 @@ def preprocess_text(text: str) -> str:
 class CollegeChatbot:
     """
     Intelligent College Enquiry Chatbot powered by TF-IDF & Cosine Similarity,
-    augmented with Fuzzy Sequence Matching for typo resilience.
+    augmented with Fuzzy Sequence Matching and ChatGPT-like LLM generation.
     """
 
     def __init__(self, faq_df: pd.DataFrame, similarity_threshold: float = 0.25):
@@ -143,35 +152,56 @@ class CollegeChatbot:
         clean = text.lower().strip()
         return any(re.search(pat, clean) for pat in FAREWELL_PATTERNS)
 
-    def get_response(self, user_query: str, category_filter: Optional[str] = None) -> Dict[str, Any]:
+    def get_response(
+        self,
+        user_query: str,
+        category_filter: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, Any]]] = None,
+        api_key: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Processes a student's natural language enquiry and returns the best matching answer.
-
-        Parameters:
-            user_query (str): The natural language query from the student.
-            category_filter (str, optional): Category name to restrict search, or None for all.
+        Processes a student's natural language enquiry, supports multi-turn context
+        and follow-ups, and returns the response.
 
         Returns:
             dict: {
                 "answer": str,
+                "friendly_answer": str,
                 "matched_question": Optional[str],
                 "category": Optional[str],
                 "confidence": float,
                 "status": "greeting" | "gratitude" | "farewell" | "matched" | "fallback" | "invalid",
-                "is_fuzzy": bool
+                "is_fuzzy": bool,
+                "ai_generated": bool
             }
         """
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        history = conversation_history or []
+
+        # Extract last image displayed from history to strictly prevent repetition
+        last_image = None
+        for msg in reversed(history):
+            if msg.get("role") == "assistant":
+                meta = msg.get("meta") or {}
+                vis = meta.get("visual") or {}
+                if vis.get("image"):
+                    last_image = vis["image"]
+                    break
 
         # 1. Validate empty/invalid input
         if not user_query or not user_query.strip():
+            msg = "Please enter a valid question or enquiry so I can assist you."
+            friendly = generate_local_friendly_response(user_query, msg, None, None, "invalid", history)
             response = {
-                "answer": "Please enter a valid question or enquiry so I can assist you.",
+                "answer": msg,
+                "friendly_answer": friendly,
                 "matched_question": None,
                 "category": None,
                 "confidence": 0.0,
                 "status": "invalid",
-                "is_fuzzy": False
+                "is_fuzzy": False,
+                "ai_generated": False,
+                "visual": get_topic_visual("General", msg, last_image=last_image)
             }
             self._log_interaction(timestamp, "INVALID_INPUT", 0.0, "None", "invalid")
             return response
@@ -180,51 +210,113 @@ class CollegeChatbot:
 
         # 2. Check for Greetings
         if self._is_greeting(cleaned_query):
+            ans = (
+                "Hello! Welcome to the VR College of Engineering AI Enquiry Assistant. "
+                "How can I help you today? You can ask me about courses, admissions, fees, "
+                "hostel facilities, placements, and more!"
+            )
+            friendly = generate_local_friendly_response(cleaned_query, ans, "Greeting", None, "greeting", history)
             response = {
-                "answer": (
-                    "Hello! Welcome to the AI College Enquiry Assistant. "
-                    "How can I help you today? You can ask me about courses, admissions, fees, "
-                    "hostel facilities, placements, and more!"
-                ),
+                "answer": ans,
+                "friendly_answer": friendly,
                 "matched_question": None,
                 "category": "Greeting",
                 "confidence": 1.0,
                 "status": "greeting",
-                "is_fuzzy": False
+                "is_fuzzy": False,
+                "ai_generated": False,
+                "visual": get_topic_visual("Greeting", ans, last_image=last_image)
             }
             self._log_interaction(timestamp, "GREETING", 1.0, "Greeting", "greeting")
             return response
 
         # 3. Check for Gratitude / Thank you
         if self._is_gratitude(cleaned_query):
+            ans = (
+                "You're very welcome! Feel free to ask if you have any more questions about VR College of Engineering. "
+                "Best of luck with your academic journey!"
+            )
+            friendly = generate_local_friendly_response(cleaned_query, ans, "Gratitude", None, "gratitude", history)
             response = {
-                "answer": (
-                    "You're very welcome! Feel free to ask if you have any more questions about the college. "
-                    "Best of luck with your academic journey!"
-                ),
+                "answer": ans,
+                "friendly_answer": friendly,
                 "matched_question": None,
                 "category": "Gratitude",
                 "confidence": 1.0,
                 "status": "gratitude",
-                "is_fuzzy": False
+                "is_fuzzy": False,
+                "ai_generated": False,
+                "visual": get_topic_visual("Gratitude", ans, last_image=last_image)
             }
             self._log_interaction(timestamp, "GRATITUDE", 1.0, "Gratitude", "gratitude")
             return response
 
         # 4. Check for Farewell
         if self._is_farewell(cleaned_query):
+            ans = "Goodbye! Have a wonderful day ahead. Reach out anytime if you need more information."
+            friendly = generate_local_friendly_response(cleaned_query, ans, "Farewell", None, "farewell", history)
             response = {
-                "answer": "Goodbye! Have a wonderful day ahead. Reach out anytime if you need more information.",
+                "answer": ans,
+                "friendly_answer": friendly,
                 "matched_question": None,
                 "category": "Farewell",
                 "confidence": 1.0,
                 "status": "farewell",
-                "is_fuzzy": False
+                "is_fuzzy": False,
+                "ai_generated": False,
+                "visual": get_topic_visual("Farewell", ans, last_image=last_image)
             }
             self._log_interaction(timestamp, "FAREWELL", 1.0, "Farewell", "farewell")
             return response
 
-        # 5. Apply category filter if specified
+        # 5. Multi-turn Follow-up Resolution
+        resolved_query = resolve_followup_query(cleaned_query, history)
+
+        # Check if user is asking to elaborate on prior turn (e.g. "ok explain more", "tell me more", "more details")
+        is_elaboration = bool(
+            re.search(r"^(ok\s+)?(explain\s+more|tell\s+me\s+more|elaborate|explain\s+further|more\s+details?|details?\s+please|can\s+you\s+explain\s+more|give\s+more\s+details?|in\s+detail)\b", cleaned_query.lower())
+            or cleaned_query.lower() in ["more details", "more detail", "details", "explain more", "ok explain more", "tell me more", "explain", "more"]
+        )
+
+        # 6. Explicit Intent Detection Engine (Top Priority)
+        # Accurately routes dedicated intents (College Name, Location, Courses, Scholarships, etc.)
+        # so general queries never accidentally trigger the fee structure.
+        detected_intent = classify_intent(cleaned_query)
+        if detected_intent == Intent.UNKNOWN and resolved_query != cleaned_query and not is_elaboration:
+            detected_intent = classify_intent(resolved_query)
+
+        if detected_intent != Intent.UNKNOWN and detected_intent != Intent.FEE_STRUCTURE:
+            intent_res = get_intent_response(detected_intent, cleaned_query)
+            if intent_res:
+                intent_res["visual"] = get_topic_visual(intent_res["category"], intent_res["friendly_answer"], last_image=last_image)
+                self._log_interaction(
+                    timestamp,
+                    f"Len: {len(cleaned_query)} chars",
+                    1.0,
+                    intent_res["category"],
+                    "matched"
+                )
+                return intent_res
+
+        # 7. Smart College Fee Enquiry Priority Check
+        # Triggered ONLY when user specifically asks about fees, tuition, or when detected_intent is FEE_STRUCTURE
+        is_fee = (detected_intent == Intent.FEE_STRUCTURE) or is_fee_enquiry(cleaned_query) or is_fee_enquiry(resolved_query) or (category_filter and category_filter.lower() == "fees")
+        if category_filter and category_filter not in ["All Categories", "Fees", "Hostel"]:
+            is_fee = False
+
+        if is_fee:
+            fee_target_query = resolved_query if is_fee_enquiry(resolved_query) else cleaned_query
+            fee_res = generate_smart_fee_response(fee_target_query, category_filter=category_filter, last_image=last_image)
+            self._log_interaction(
+                timestamp,
+                f"Len: {len(cleaned_query)} chars",
+                1.0,
+                fee_res["category"],
+                "matched"
+            )
+            return fee_res
+
+        # 8. Apply category filter if specified
         target_df = self.faq_df
         target_indices = None
         if category_filter and category_filter != "All Categories":
@@ -232,13 +324,12 @@ class CollegeChatbot:
             if mask.any():
                 target_indices = target_df[mask].index.tolist()
 
-        # 6. TF-IDF vectorization & Cosine Similarity calculation
-        norm_query = preprocess_text(cleaned_query)
+        # 8. TF-IDF vectorization & Cosine Similarity calculation
+        norm_query = preprocess_text(resolved_query)
         query_vector = self.vectorizer.transform([norm_query])
         similarities = cosine_similarity(query_vector, self.question_vectors).flatten()
 
         if target_indices is not None:
-            # Mask out non-selected categories by setting their similarity to -1
             masked_sims = similarities.copy()
             for idx in range(len(masked_sims)):
                 if idx not in target_indices:
@@ -249,7 +340,7 @@ class CollegeChatbot:
             best_idx = int(similarities.argmax())
             best_score = float(similarities[best_idx])
 
-        # 7. Fuzzy Typo Matching Fallback (if TF-IDF score is borderline or low)
+        # 8. Fuzzy Typo Matching Fallback
         is_fuzzy = False
         valid_indices = target_indices if target_indices is not None else list(range(len(self.processed_questions)))
 
@@ -261,8 +352,6 @@ class CollegeChatbot:
             for idx in valid_indices:
                 faq_norm = self.processed_questions[idx]
                 seq_ratio = difflib.SequenceMatcher(None, norm_query, faq_norm).ratio()
-                
-                # Check token overlap
                 faq_words = set(faq_norm.split())
                 overlap = len(q_words & faq_words) / max(1, len(q_words))
                 combined_fuzzy = max(seq_ratio, overlap * 0.85)
@@ -271,7 +360,6 @@ class CollegeChatbot:
                     best_fuzzy_score = combined_fuzzy
                     best_fuzzy_idx = idx
 
-            # If fuzzy similarity is convincing, promote it
             if best_fuzzy_score >= 0.50:
                 boosted_score = round(max(best_score, best_fuzzy_score * 0.75), 4)
                 if boosted_score >= self.similarity_threshold:
@@ -279,35 +367,86 @@ class CollegeChatbot:
                     best_score = boosted_score
                     is_fuzzy = True
 
-        # 8. Threshold Evaluation
+        # 9. Response Composition & Optional LLM Generation
         if best_score >= self.similarity_threshold:
             matched_row = self.faq_df.iloc[best_idx]
+            raw_answer = matched_row["answer"]
+            cat = matched_row["category"]
+            matched_q = matched_row["question"]
+
+            # Grounded facts collection for LLM
+            grounded_facts = [{
+                "category": cat,
+                "question": matched_q,
+                "answer": raw_answer
+            }]
+
+            ai_generated = False
+            friendly_answer = ""
+
+            # Check if Gemini AI can generate response
+            if is_ai_available(api_key):
+                llm_res = generate_llm_response(
+                    user_query=cleaned_query,
+                    grounded_facts=grounded_facts,
+                    history=history,
+                    api_key=api_key
+                )
+                if llm_res:
+                    friendly_answer = llm_res
+                    ai_generated = True
+
+            if not friendly_answer:
+                friendly_answer = generate_local_friendly_response(
+                    user_query=cleaned_query,
+                    raw_answer=raw_answer,
+                    category=cat,
+                    matched_question=matched_q,
+                    status="matched",
+                    history=history
+                )
+
             response = {
-                "answer": matched_row["answer"],
-                "matched_question": matched_row["question"],
-                "category": matched_row["category"],
+                "answer": raw_answer,
+                "friendly_answer": friendly_answer,
+                "matched_question": matched_q,
+                "category": cat,
                 "confidence": round(best_score, 4),
                 "status": "matched",
-                "is_fuzzy": is_fuzzy
+                "is_fuzzy": is_fuzzy,
+                "ai_generated": ai_generated,
+                "visual": get_topic_visual(cat, raw_answer, last_image=last_image)
             }
             self._log_interaction(
                 timestamp,
                 f"Len: {len(cleaned_query)} chars",
                 round(best_score, 4),
-                matched_row["category"],
+                cat,
                 "matched"
             )
         else:
-            # Query not resolved: log into unanswered queries for administrative review
+            # Query not resolved: log into unanswered queries
             log_unanswered_query(cleaned_query, best_score, category_filter)
+
+            friendly_fallback = generate_local_friendly_response(
+                user_query=cleaned_query,
+                raw_answer=DEFAULT_FALLBACK_MESSAGE,
+                category=None,
+                matched_question=None,
+                status="fallback",
+                history=history
+            )
 
             response = {
                 "answer": DEFAULT_FALLBACK_MESSAGE,
+                "friendly_answer": friendly_fallback,
                 "matched_question": None,
                 "category": None,
                 "confidence": round(best_score, 4),
                 "status": "fallback",
-                "is_fuzzy": False
+                "is_fuzzy": False,
+                "ai_generated": False,
+                "visual": get_topic_visual("Admissions", DEFAULT_FALLBACK_MESSAGE, last_image=last_image)
             }
             self._log_interaction(
                 timestamp,
@@ -320,9 +459,7 @@ class CollegeChatbot:
         return response
 
     def _log_interaction(self, timestamp: str, query_meta: str, score: float, category: str, status: str) -> None:
-        """
-        Safely logs interaction metadata without storing raw sensitive personal details.
-        """
+        """Safely logs interaction metadata without storing raw sensitive personal details."""
         self.logs.append({
             "timestamp": timestamp,
             "query_meta": query_meta,
@@ -354,6 +491,7 @@ if __name__ == "__main__":
         print(f"Loaded {len(faq_df)} FAQs successfully! Ready for queries.")
         print("Type 'exit' or 'quit' to stop.\n")
 
+        chat_history = []
         while True:
             try:
                 user_q = input("Student: ")
@@ -365,13 +503,18 @@ if __name__ == "__main__":
                 print("Bot: Goodbye! Have a wonderful day.")
                 break
 
-            resp = bot.get_response(user_q)
-            print(f"Bot: {resp['answer']}")
+            resp = bot.get_response(user_q, conversation_history=chat_history)
+            disp = resp.get("friendly_answer") or resp.get("answer")
+            print(f"\nBot: {disp}\n")
+
+            chat_history.append({"role": "user", "content": user_q})
+            chat_history.append({"role": "assistant", "content": disp})
+
             if resp.get("status") == "matched":
                 fuzzy_tag = " [Fuzzy Matched]" if resp.get("is_fuzzy") else ""
-                print(f"   [Category: {resp['category']} | Confidence: {resp['confidence']:.2f}{fuzzy_tag}]")
+                ai_tag = " [Gemini AI]" if resp.get("ai_generated") else " [Local Agent]"
+                print(f"   [Category: {resp['category']} | Confidence: {resp['confidence']:.2f}{fuzzy_tag}{ai_tag}]\n")
             elif resp.get("status") == "fallback":
-                print(f"   [Fallback Triggered | Score: {resp['confidence']:.2f}]")
-            print()
+                print(f"   [Fallback Triggered | Score: {resp['confidence']:.2f}]\n")
     except Exception as e:
         print(f"Error starting chatbot: {e}")

@@ -64,7 +64,7 @@ def save_admission_lead(
 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ref_seed = int(datetime.datetime.now().timestamp() % 100000)
-    ref_no = f"APEX-{datetime.datetime.now().strftime('%y')}-{ref_seed:05d}"
+    ref_no = f"VRCE-{datetime.datetime.now().strftime('%y')}-{ref_seed:05d}"
 
     new_lead = {
         "timestamp": timestamp,

@@ -1,10 +1,10 @@
 """
 AI-Based College Enquiry Chatbot - Streamlit User Interface.
 
-A modern, responsive, and intuitive web interface designed with an executive
+A modern, responsive, ChatGPT-like conversational web interface designed with an executive
 blue-and-white theme, two-column interactive layout, quick FAQ shortcuts,
-real-time NLP match diagnostics, typo-resilience, voice assistant capabilities,
-admission lead capture, and an administrative desk portal.
+real-time NLP match diagnostics, typo-resilience, multi-turn conversational context,
+voice assistant capabilities, admission lead capture, and an administrative desk portal.
 """
 
 import os
@@ -31,19 +31,21 @@ from lead_manager import (
     get_analytics_summary
 )
 from generate_prospectus import create_prospectus, PROSPECTUS_PATH
+from ai_agent import get_api_key, is_ai_available
+from image_manager import get_all_interactive_cards, get_contextual_chips
 
 # ---------------------------------------------------------
 # Page Configuration
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="AI College Enquiry Portal",
+    page_title="VRBot | VR College of Engineering Enquiry Portal",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ---------------------------------------------------------
-# Modern CSS Stylesheet
+# Modern CSS Stylesheet (ChatGPT-Style Conversational UX)
 # ---------------------------------------------------------
 st.markdown("""
 <style>
@@ -206,58 +208,71 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         font-weight: 600;
         background-color: #EFF6FF;
         color: #1D4ED8;
         border: 1px solid #BFDBFE;
-        padding: 3px 10px;
+        padding: 2px 8px;
         border-radius: 9999px;
     }
     .confidence-pill {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         font-weight: 600;
         background-color: #ECFDF5;
         color: #047857;
         border: 1px solid #A7F3D0;
-        padding: 3px 10px;
+        padding: 2px 8px;
         border-radius: 9999px;
-        margin-left: 6px;
+        margin-left: 4px;
+    }
+    .ai-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+        color: #4338CA;
+        border: 1px solid #C7D2FE;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        margin-left: 4px;
     }
     .fuzzy-pill {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         font-weight: 600;
         background-color: #FEF3C7;
         color: #92400E;
         border: 1px solid #FDE68A;
-        padding: 3px 10px;
+        padding: 2px 8px;
         border-radius: 9999px;
-        margin-left: 6px;
+        margin-left: 4px;
     }
     .fallback-pill {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        font-size: 0.75rem;
+        font-size: 0.74rem;
         font-weight: 600;
         background-color: #FEF2F2;
         color: #B91C1C;
         border: 1px solid #FECACA;
-        padding: 3px 10px;
+        padding: 2px 8px;
         border-radius: 9999px;
-        margin-left: 6px;
+        margin-left: 4px;
     }
     .matched-prompt-hint {
-        font-size: 0.82rem;
+        font-size: 0.80rem;
         color: #475569;
         margin-top: 6px;
-        padding: 6px 10px;
+        padding: 5px 10px;
         background: #F8FAFC;
         border-left: 3px solid #3B82F6;
         border-radius: 0 6px 6px 0;
@@ -371,28 +386,68 @@ if "messages" not in st.session_state:
         {
             "role": "assistant",
             "content": (
-                "👋 Hello! Welcome to the **Apex Institute Campus Helpdesk & AI Enquiry Assistant**.\n\n"
-                "I am here to help you explore verified information regarding **Admissions, Courses, "
-                "Fee Schedules, Hostel Facilities, Placement Records, and Campus Contacts**.\n\n"
-                "💡 **New Features:**\n"
-                "- 🔤 **Typo-tolerant Search**: Even if you misspell words like 'admision' or 'scolorship', I'll find the right answer!\n"
-                "- 🎙️ **Voice Query & Read Aloud**: Speak your questions or listen to audio responses.\n"
-                "- 📝 **Direct Admission Leads**: Use the **Apply / Callback** tab on the right to connect with our counseling desk.\n"
-                "- 📄 **Download Official Prospectus**: Get the complete 2026-27 brochure from the sidebar."
+                "👋 Hello there! Welcome to the **VR College of Engineering Campus Helpdesk & AI Admissions Desk**.\n\n"
+                "I'm **VRBot**, your friendly campus AI advisor! Think of me as your personal guide to everything about "
+                "VR College of Engineering. I can help you with:\n"
+                "- 🎓 **Courses & Programs** (B.Tech CSE, AI&DS, ECE, Mech, M.Tech, MBA, MCA)\n"
+                "- 📝 **Admissions & Eligibility Criteria** (Cutoffs, lateral entry, documents required)\n"
+                "- 💰 **Fee Schedules & Scholarships** (Installment options, tuition breakdown)\n"
+                "- 🏢 **Campus Hostels & Facilities** (Mess menus, curfew timings, room amenities)\n"
+                "- 💼 **Placements & Recruiter Records** (Highest CTC: ₹14 LPA, top hiring companies)\n"
+                "- 📚 **Central Library & Research Labs**\n\n"
+                "Feel free to ask your questions in normal, everyday language—or even ask follow-up questions like *'explain the first course'* or *'what is the fee for that?'*! How can I help you today? 😊"
             ),
-            "meta": None
+            "meta": {
+                "visual": {
+                    "image": "campus_main.jpg",
+                    "caption": "🏛️ VR College of Engineering 50-Acre Campus"
+                }
+            }
         }
     ]
 
 # ---------------------------------------------------------
-# Sidebar: College Identity & System Controls
+# Sidebar: AI Intelligence Engine & System Controls
 # ---------------------------------------------------------
 with st.sidebar:
     if os.path.exists(LOGO_PATH):
         st.image(LOGO_PATH, use_container_width=True)
     else:
-        st.markdown("### 🎓 **Apex Engineering College**")
+        st.markdown("### 🎓 **VR College of Engineering**")
         st.caption("Accredited NAAC 'A+' | AICTE Approved")
+
+    st.markdown("---")
+    st.markdown("#### 🧠 **AI Intelligence Engine**")
+
+    # API Key Configuration
+    env_key = get_api_key() or ""
+    custom_key = st.text_input(
+        "Google Gemini API Key (Optional):",
+        value=env_key,
+        type="password",
+        help="Optional: Enter a Gemini API Key to enable ChatGPT-like LLM generation. If empty, the smart local conversational engine is used 100% free with zero API costs!"
+    )
+    active_api_key = custom_key.strip() if custom_key else env_key
+
+    if is_ai_available(active_api_key):
+        st.markdown(
+            """
+            <div style="background:#ECFDF5; border:1px solid #A7F3D0; color:#047857; font-size:0.78rem; font-weight:700; padding:6px 10px; border-radius:8px; margin-bottom:8px;">
+                🤖 Mode: Gemini 2.5 Flash (AI Enhanced)
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            """
+            <div style="background:#EFF6FF; border:1px solid #BFDBFE; color:#1D4ED8; font-size:0.78rem; font-weight:700; padding:6px 10px; border-radius:8px; margin-bottom:8px;">
+                ⚡ Mode: Local Smart Conversational Agent (100% Free / Offline)
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        st.caption("💡 Tip: To enable Gemini generative responses, get a free key from [aistudio.google.com](https://aistudio.google.com/).")
 
     st.markdown("---")
     st.markdown("#### ⚙️ **Enquiry & Filter Controls**")
@@ -441,7 +496,8 @@ with st.sidebar:
                 unsafe_allow_html=True
             )
 
-        st.caption(f"Active Threshold: **{threshold:.2f}** | Engine: **TF-IDF + Fuzzy NLP**")
+        engine_label = "Gemini AI + TF-IDF Grounding" if is_ai_available(active_api_key) else "TF-IDF + Fuzzy Conversational NLP"
+        st.caption(f"Engine: **{engine_label}** | Threshold: **{threshold:.2f}**")
 
     st.markdown("---")
     st.markdown("#### 📄 **Official Prospectus**")
@@ -451,7 +507,7 @@ with st.sidebar:
         st.download_button(
             "📥 Download 2026-27 Prospectus (PDF)",
             data=pdf_bytes,
-            file_name="Apex_College_Prospectus_2026.pdf",
+            file_name="VR_College_Prospectus_2026.pdf",
             mime="application/pdf",
             use_container_width=True,
             help="Download comprehensive courses, fee structure, hostel rules, and placement report"
@@ -461,25 +517,30 @@ with st.sidebar:
     st.markdown("#### 🛠️ **Session Tools**")
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("🗑️ Reset Chat", use_container_width=True, help="Clear current conversation history"):
+        if st.button("🗑️ Clear Chat", use_container_width=True, help="Clear current conversation history"):
             st.session_state.messages = [
                 {
                     "role": "assistant",
-                    "content": "Conversation reset. How can I help you today?",
-                    "meta": None
+                    "content": "Conversation cleared! How can I help you today? Feel free to ask about courses, fees, or admissions. 😊",
+                    "meta": {
+                        "visual": {
+                            "image": "campus_main.jpg",
+                            "caption": "🏛️ VR College of Engineering 50-Acre Campus"
+                        }
+                    }
                 }
             ]
             st.rerun()
 
     with col_btn2:
         transcript = "\n\n".join([
-            f"{'Student' if m['role'] == 'user' else 'College Assistant'}: {m['content']}"
+            f"{'Student' if m['role'] == 'user' else 'VRBot'}: {m['content']}"
             for m in st.session_state.messages
         ])
         st.download_button(
             "📥 Export Chat",
             data=transcript,
-            file_name="college_enquiry_transcript.txt",
+            file_name="vr_college_chat_transcript.txt",
             mime="text/plain",
             use_container_width=True,
             help="Download chat history as text"
@@ -488,16 +549,16 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("#### 🏛️ **Campus Snapshot**")
     if os.path.exists(CAMPUS_MAIN_IMG):
-        st.image(CAMPUS_MAIN_IMG, caption="Apex 50-Acre Green Campus Quad", use_container_width=True)
+        st.image(CAMPUS_MAIN_IMG, caption="VR College of Engineering 50-Acre Green Campus Quad", use_container_width=True)
 
     st.markdown("---")
     st.markdown(
         """
         <div style="font-size: 0.78rem; color: #64748B; line-height: 1.5;">
-            <strong>Apex Institute of Technology & Science</strong><br>
+            <strong>VR College of Engineering</strong><br>
             Knowledge Campus, Sector 4, Education City<br>
             📞 Helpline: +91 98765 43210<br>
-            ✉️ Email: admissions@demo-college.edu
+            ✉️ Email: admissions@vrcollege.edu
         </div>
         """,
         unsafe_allow_html=True
@@ -514,7 +575,7 @@ with col_hero_brand:
         <div class="brand-hero">
             <div class="hero-top-brand">
                 <div>
-                    <div class="hero-inst-name">🏛️ APEX INSTITUTE OF TECHNOLOGY & SCIENCE</div>
+                    <div class="hero-inst-name">🏛️ VR COLLEGE OF ENGINEERING</div>
                     <div class="hero-accred-text">Approved by AICTE • NAAC 'A+' Grade • Estd. 2005 • Affiliated to Tech University</div>
                 </div>
                 <div class="hero-live-indicator">
@@ -522,9 +583,9 @@ with col_hero_brand:
                 </div>
             </div>
             <div>
-                <h1 class="brand-title">🎓 Apex College AI Campus Portal</h1>
+                <h1 class="brand-title">🎓 VR College of Engineering AI Campus Portal</h1>
                 <div class="brand-subtitle">
-                    Official Intelligent Student Enquiry & Admissions Helpdesk for <strong>B.Tech, M.Tech, MBA & MCA</strong>
+                    Intelligent Conversational Student Enquiry & Admissions Assistant powered by <strong>Natural AI</strong>
                 </div>
             </div>
             <div class="hero-brand-stats-row">
@@ -694,7 +755,7 @@ with col_hub:
         admin_pin = st.text_input("Staff Security PIN:", type="password", key="admin_pin_input", help="Demo access: admin123")
         if admin_pin == "admin123":
             st.success("🔓 Authenticated as Campus Helpdesk Officer")
-            
+
             desk_analytics, desk_leads, desk_unanswered, desk_crud = st.tabs([
                 "📊 Overview", "📋 Leads", "❓ Unanswered", "📚 FAQ CRUD"
             ])
@@ -771,35 +832,44 @@ with col_hub:
         else:
             st.info("Enter Administrator PIN (Default: `admin123`) to access leads, logs, and FAQ manager.")
 
-    # 4. Campus Gallery Tab
+    # 4. Campus Gallery Tab with Interactive Image Cards across 15 Categories
     with tab_gallery:
         st.markdown(
             """
-            <div style="font-size:0.86rem; color:#475569; margin-bottom:12px;">
-                Explore world-class academic and residential infrastructure across the Apex Campus:
+            <div class="card-title">📸 Interactive Campus Showcase</div>
+            <div style="font-size:0.83rem; color:#475569; margin-bottom:12px;">
+                Explore all 15 specialized facilities across the 50-acre VR College of Engineering Campus. Click any card to enquire immediately:
             </div>
             """,
             unsafe_allow_html=True
         )
-        if os.path.exists(STUDENTS_HERO_IMG):
-            st.image(STUDENTS_HERO_IMG, caption="👥 Student Peer Study & Group Discussions", use_container_width=True)
-        if os.path.exists(STUDENTS_GROUP_IMG):
-            st.image(STUDENTS_GROUP_IMG, caption="🎉 Cultural, Sports & Student Technical Clubs", use_container_width=True)
-        if os.path.exists(CAMPUS_MAIN_IMG):
-            st.image(CAMPUS_MAIN_IMG, caption="🏛️ Main Academic Quad & Administrative Center", use_container_width=True)
-        if os.path.exists(LAB_IMG):
-            st.image(LAB_IMG, caption="🔬 Advanced AI, Computing & Robotics Research Lab", use_container_width=True)
-        if os.path.exists(LIBRARY_IMG):
-            st.image(LIBRARY_IMG, caption="📚 Central Digital Library & Quiet Research Pods", use_container_width=True)
-        if os.path.exists(HOSTEL_IMG):
-            st.image(HOSTEL_IMG, caption="🏢 Modern Student Hostels & Dining Hall", use_container_width=True)
-        if os.path.exists(SPORTS_IMG):
-            st.image(SPORTS_IMG, caption="⚽ Olympic-Grade Sports Arena & Athletic Complex", use_container_width=True)
+        gallery_cards = get_all_interactive_cards()
+        for c_idx, card in enumerate(gallery_cards):
+            card_img_path = os.path.join(ASSETS_DIR, card["image"])
+            with st.container():
+                st.markdown(
+                    f"""
+                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-radius:12px; padding:10px 12px; margin-bottom:6px; box-shadow:0 2px 4px rgba(0,0,0,0.03);">
+                        <div style="font-size:0.90rem; font-weight:700; color:#1E3A8A; margin-bottom:3px;">
+                            {card['title']}
+                        </div>
+                        <div style="font-size:0.78rem; color:#475569; line-height:1.4;">
+                            {card['description']}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                if os.path.exists(card_img_path):
+                    st.image(card_img_path, caption=card["title"], use_container_width=True)
+                if st.button(f"👉 Enquire: {card['title']}", key=f"gal_card_{card['id']}_{c_idx}", use_container_width=True):
+                    clicked_query = card["quick_prompt"]
+                st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
 
     # 5. Highlights Tab
     with tab_campus:
         if os.path.exists(CAMPUS_MAIN_IMG):
-            st.image(CAMPUS_MAIN_IMG, caption="Apex Knowledge Campus (50+ Acres Green Infrastructure)", use_container_width=True)
+            st.image(CAMPUS_MAIN_IMG, caption="VR College of Engineering Knowledge Campus (50+ Acres Green Infrastructure)", use_container_width=True)
 
         st.markdown(
             """
@@ -842,14 +912,14 @@ with col_hub:
                 <p style="font-size:0.86rem; color:#475569; margin: 4px 0 10px 0;">Reach out directly to the counseling team:</p>
                 <div class="info-row"><span class="info-label">Helpline:</span><span class="info-val">+91 98765 43210</span></div>
                 <div class="info-row"><span class="info-label">Landline:</span><span class="info-val">0123-456789</span></div>
-                <div class="info-row"><span class="info-label">Email:</span><span class="info-val">admissions@demo-college.edu</span></div>
+                <div class="info-row"><span class="info-label">Email:</span><span class="info-val">admissions@vrcollege.edu</span></div>
                 <div class="info-row"><span class="info-label">Hours:</span><span class="info-val">Mon - Fri: 9 AM - 5 PM</span></div>
             </div>
 
             <div class="modern-card">
                 <div class="card-title">📍 Campus Address</div>
                 <div style="font-size:0.88rem; color:#334155; line-height:1.6;">
-                    <strong>Apex Institute of Technology & Science</strong><br>
+                    <strong>VR College of Engineering</strong><br>
                     Knowledge Campus, Sector 4, Education City<br>
                     Pincode: 560001, Karnataka, India.
                 </div>
@@ -869,7 +939,7 @@ with col_hub:
                 st.info("No queries processed yet in this session.")
 
 # =========================================================
-# Left Column: Conversation Stream & Message Box
+# Left Column: ChatGPT-Style Conversational Interface
 # =========================================================
 with col_chat:
     msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
@@ -887,7 +957,7 @@ with col_chat:
         unsafe_allow_html=True
     )
 
-    # Render Conversation Messages
+    # Render Conversation Messages (ChatGPT Style)
     last_user_query = ""
     for idx, msg in enumerate(st.session_state.messages):
         if msg["role"] == "user":
@@ -896,38 +966,54 @@ with col_chat:
                 st.markdown(f"**{msg['content']}**")
         else:
             with st.chat_message("assistant", avatar="🤖"):
-                st.markdown(msg["content"])
-                
+                meta = msg.get("meta") or {}
+                visual = meta.get("visual") or {}
+                img_name = visual.get("image") or "campus_main.jpg"
+                img_caption = visual.get("caption") or "🏛️ VR College of Engineering Campus"
+                img_full_path = os.path.join(ASSETS_DIR, img_name)
+
                 # Diagnostics & Metadata
-                if msg.get("meta"):
-                    meta = msg["meta"]
-                    status = meta.get("status")
-                    cat = meta.get("category")
-                    conf = meta.get("confidence", 0.0)
-                    matched_q = meta.get("matched_question")
-                    is_fuzzy = meta.get("is_fuzzy", False)
+                status = meta.get("status")
+                cat = meta.get("category")
+                conf = meta.get("confidence", 0.0)
+                matched_q = meta.get("matched_question")
+                is_fuzzy = meta.get("is_fuzzy", False)
+                ai_gen = meta.get("ai_generated", False)
 
-                    meta_html = ""
-                    if cat and cat not in ["Greeting", "Gratitude", "Farewell"]:
-                        meta_html += f'<span class="category-pill">📂 Category: {cat}</span> '
-                    if status == "matched":
-                        meta_html += f'<span class="confidence-pill">🎯 Match: {int(conf * 100)}%</span> '
-                        if is_fuzzy:
-                            meta_html += '<span class="fuzzy-pill">⚡ Auto-Corrected / Typo Resilient</span> '
-                        if matched_q:
-                            meta_html += f'<div class="matched-prompt-hint">💡 Matched FAQ: <em>"{matched_q}"</em></div>'
-                    elif status == "fallback":
-                        meta_html += f'<span class="fallback-pill">⚠️ Low Similarity ({int(conf * 100)}%) - Fallback Triggered</span>'
-                    elif status in ["greeting", "gratitude", "farewell"]:
-                        meta_html += f'<span class="confidence-pill">⚡ Instant {status.capitalize()}</span>'
+                meta_html = ""
+                if ai_gen:
+                    meta_html += '<span class="ai-pill">✨ Gemini AI Generated</span> '
+                if cat and cat not in ["Greeting", "Gratitude", "Farewell"]:
+                    meta_html += f'<span class="category-pill">📂 Category: {cat}</span> '
+                if status == "matched":
+                    meta_html += f'<span class="confidence-pill">🎯 Grounded: {int(conf * 100)}%</span> '
+                    if is_fuzzy:
+                        meta_html += '<span class="fuzzy-pill">⚡ Auto-Corrected / Typo Resilient</span> '
+                    if matched_q and not ai_gen:
+                        meta_html += f'<div class="matched-prompt-hint">💡 Matched FAQ: <em>"{matched_q}"</em></div>'
+                elif status == "fallback":
+                    meta_html += f'<span class="fallback-pill">💡 Guided Campus Advisory</span>'
+                elif status in ["greeting", "gratitude", "farewell"]:
+                    meta_html += f'<span class="confidence-pill">⚡ Instant {status.capitalize()}</span>'
 
+                # 1:3 Ratio Layout: Related Campus Picture (1 Part) + Friendly Response Text (3 Parts)
+                if os.path.exists(img_full_path):
+                    col_resp_img, col_resp_text = st.columns([1, 3], gap="medium")
+                    with col_resp_img:
+                        st.image(img_full_path, caption=img_caption, use_container_width=True)
+                    with col_resp_text:
+                        st.markdown(msg["content"])
+                        if meta_html:
+                            st.markdown(meta_html, unsafe_allow_html=True)
+                else:
+                    st.markdown(msg["content"])
                     if meta_html:
                         st.markdown(meta_html, unsafe_allow_html=True)
 
                 # Action Bar: Audio Read Aloud & Student Feedback Rating
                 if idx > 0 and msg["content"]:
                     clean_text_for_js = json.dumps(msg["content"].replace("[DEMO DATA]", "").strip())
-                    
+
                     c_act1, c_act2, c_act3, c_act4 = st.columns([1.8, 1, 1, 5])
                     with c_act1:
                         # Native Browser Text-to-Speech
@@ -946,36 +1032,65 @@ with col_chat:
                             log_feedback(query=last_user_query, answer=msg["content"], rating="negative")
                             st.toast("Feedback noted! Our counseling desk will review this. 👎")
 
-    # Campus Highlights Expander
-    with st.expander("📸 **Virtual Campus Tour & Facilities Showcase (Click to View)**", expanded=(len(st.session_state.messages) <= 2)):
+                # Contextual Interactive Suggestion Chips (Prompt Requirement: Interactive quick-response cards)
+                if idx == len(st.session_state.messages) - 1:
+                    cat_id_hint = meta.get("category_id") or meta.get("category")
+                    context_chips = get_contextual_chips(last_user_query, cat_id_hint)
+                    st.markdown("<div style='margin-top:10px; margin-bottom:4px; font-size:0.78rem; color:#64748B; font-weight:600;'>💡 Interactive Suggestions (Click to Ask):</div>", unsafe_allow_html=True)
+                    chip_cols = st.columns(len(context_chips))
+                    for c_i, (chip_label, chip_query) in enumerate(context_chips):
+                        with chip_cols[c_i]:
+                            if st.button(chip_label, key=f"chip_dyn_{idx}_{c_i}", use_container_width=True):
+                                clicked_query = chip_query
+
+    # Suggested Starter Prompts (Show when chat has few messages)
+    if len(st.session_state.messages) <= 2:
+        st.markdown("<div style='margin-top: 10px; margin-bottom: 6px; font-size: 0.84rem; color: #64748B; font-weight: 600;'>💡 Try asking a question or follow-up:</div>", unsafe_allow_html=True)
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            if st.button("🎓 What undergraduate courses are offered?", key="chip_c1", use_container_width=True):
+                clicked_query = "What undergraduate courses are offered?"
+            if st.button("💰 How much is the annual fee for B.Tech?", key="chip_c2", use_container_width=True):
+                clicked_query = "How much is the annual tuition fee for B.Tech?"
+        with col_s2:
+            if st.button("🏢 Are hostel facilities available on campus?", key="chip_c3", use_container_width=True):
+                clicked_query = "Are hostel facilities available for boys and girls?"
+            if st.button("💼 What was the highest placement package?", key="chip_c4", use_container_width=True):
+                clicked_query = "What was the highest and average salary package in recent placements?"
+
+    # Campus Highlights Expander with Interactive Facility Cards
+    with st.expander("📸 **Virtual Campus Tour & 15 Facility Showcases (Click to Explore)**", expanded=(len(st.session_state.messages) <= 2)):
+        st.markdown(
+            """
+            <div style="font-size:0.83rem; color:#475569; margin-bottom:10px;">
+                Browse our 15 key campus facilities. Click any card button to trigger an immediate conversational enquiry:
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        featured_cards = get_all_interactive_cards()
+        # Display in 3 responsive columns
         c_p1, c_p2, c_p3 = st.columns(3)
-        with c_p1:
-            if os.path.exists(CAMPUS_MAIN_IMG):
-                st.image(CAMPUS_MAIN_IMG, caption="🏛️ Academic Quad & Grounds", use_container_width=True)
-            if os.path.exists(HOSTEL_IMG):
-                st.image(HOSTEL_IMG, caption="🏢 Student Residence & Dining", use_container_width=True)
-        with c_p2:
-            if os.path.exists(LAB_IMG):
-                st.image(LAB_IMG, caption="🔬 AI & Computing Research Lab", use_container_width=True)
-            if os.path.exists(SPORTS_IMG):
-                st.image(SPORTS_IMG, caption="⚽ Sports & Recreation Arena", use_container_width=True)
-        with c_p3:
-            if os.path.exists(LIBRARY_IMG):
-                st.image(LIBRARY_IMG, caption="📚 Central Digital Library", use_container_width=True)
-            st.markdown(
-                """
-                <div class="modern-card" style="padding:14px; margin-top:4px;">
-                    <strong style="color:#1E3A8A; font-size:0.88rem;">🏛️ Apex Campus Amenities</strong>
-                    <ul style="font-size:0.80rem; color:#475569; padding-left:16px; margin: 6px 0 0 0; line-height: 1.6;">
-                        <li><strong>50+ Acres</strong> Lush Green Campus</li>
-                        <li><strong>24/7 High-Speed</strong> Wi-Fi & Labs</li>
-                        <li><strong>Smart Digital</strong> Classrooms</li>
-                        <li><strong>50,000+</strong> Library Books & E-Journals</li>
-                    </ul>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        cols_list = [c_p1, c_p2, c_p3]
+        for f_i, card_item in enumerate(featured_cards):
+            target_col = cols_list[f_i % 3]
+            c_img_path = os.path.join(ASSETS_DIR, card_item["image"])
+            with target_col:
+                with st.container():
+                    st.markdown(
+                        f"""
+                        <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-radius:12px; padding:8px 10px; margin-bottom:4px;">
+                            <div style="font-size:0.86rem; font-weight:700; color:#1E3A8A;">{card_item['title']}</div>
+                            <div style="font-size:0.75rem; color:#475569; line-height:1.35; margin-top:2px;">{card_item['description'][:85]}...</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    if os.path.exists(c_img_path):
+                        st.image(c_img_path, caption=card_item["title"], use_container_width=True)
+                    if st.button(f"👉 Enquire: {card_item['title'][:14]}..", key=f"tour_btn_{card_item['id']}_{f_i}", use_container_width=True):
+                        clicked_query = card_item["quick_prompt"]
+                    st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
 
     # Voice Assistant Speech-to-Text Bar
     components.html("""
@@ -995,7 +1110,7 @@ with col_chat:
 
         recognition.onresult = function(event) {
             var transcript = event.results[0][0].transcript;
-            statusEl.innerText = "✅ Transcribed: '" + transcript + "' (Please paste or type into chat input below)";
+            statusEl.innerText = "✅ Transcribed: '" + transcript + "' (Please paste into chat box below)";
             navigator.clipboard.writeText(transcript);
         };
         recognition.onerror = function(event) {
@@ -1007,15 +1122,15 @@ with col_chat:
         <button onclick="startVoiceInput()" style="background:#2563EB; color:#FFFFFF; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
             🎙️ Speak Enquiry
         </button>
-        <span id="voice-status" style="font-size:11.5px; color:#64748B;">Click to speak into microphone (Auto-copies to clipboard)</span>
+        <span id="voice-status" style="font-size:11.5px; color:#64748B;">Click to speak into microphone (Auto-copies transcribed text to clipboard)</span>
     </div>
     """, height=44)
 
     # Chat Input Box
-    user_input = st.chat_input("Type or paste your question (e.g. 'B.Tech fees', 'hostal rules', 'scholarship eligibility', 'placement stats')...")
+    user_input = st.chat_input("Ask VRBot anything (e.g. 'What courses do you offer?', 'Explain the first one', 'hostal rules', 'B.Tech fees')...")
 
 # ---------------------------------------------------------
-# Handle Query Processing
+# Handle Query Processing with Multi-Turn Context & Streaming
 # ---------------------------------------------------------
 active_query = clicked_query if clicked_query else user_input
 
@@ -1027,21 +1142,30 @@ if active_query and chatbot_ready:
         "meta": None
     })
 
-    # 2. Get intelligent response from CollegeChatbot
-    res = chatbot.get_response(active_query, category_filter=selected_category)
+    # 2. Get intelligent, context-aware response from CollegeChatbot
+    with st.spinner("VRBot is thinking..."):
+        res = chatbot.get_response(
+            user_query=active_query,
+            category_filter=selected_category,
+            conversation_history=st.session_state.messages,
+            api_key=active_api_key
+        )
 
-    # 3. Append bot response to history
+    # 3. Prefer friendly, structured conversational response
+    display_content = res.get("friendly_answer") or res.get("answer")
+
+    # 4. Append bot response to history
     st.session_state.messages.append({
         "role": "assistant",
-        "content": res["answer"],
+        "content": display_content,
         "meta": res
     })
 
-    # 4. Trigger UI update
+    # 5. Trigger UI update
     st.rerun()
 
 # ---------------------------------------------------------
-# Mini-Game: Apex Campus Trivia Challenge
+# Mini-Game: VR College Campus Trivia Challenge
 # ---------------------------------------------------------
 TRIVIA_QUESTIONS = [
     {
@@ -1069,10 +1193,10 @@ TRIVIA_QUESTIONS = [
         "fact": "Undergraduate students can borrow up to 4 books for 14 days, while postgraduates can borrow up to 6 books."
     },
     {
-        "question": "🏆 What is the institutional NAAC accreditation grade of Apex Institute?",
+        "question": "🏆 What is the institutional NAAC accreditation grade of VR College of Engineering?",
         "options": ["NAAC 'B' Grade", "NAAC 'A+' Grade", "Not Accredited", "Grade C"],
         "answer": "NAAC 'A+' Grade",
-        "fact": "Apex Institute is proudly accredited with NAAC 'A+' Grade and approved by AICTE."
+        "fact": "VR College of Engineering is proudly accredited with NAAC 'A+' Grade and approved by AICTE."
     }
 ]
 
@@ -1095,7 +1219,7 @@ with st.container():
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 14px;">
             <div>
                 <h3 class="card-title" style="margin: 0; font-size: 1.2rem;">
-                    🎮 Apex Campus Trivia Challenge
+                    🎮 VR College Campus Trivia Challenge
                 </h3>
                 <p style="margin: 4px 0 0 0; color: #64748B; font-size: 0.9rem;">
                     Test how well you know the campus rules, admissions, hostels, and placement facts!
@@ -1116,13 +1240,13 @@ with st.container():
         final_score = st.session_state.game_score
         if final_score == total_q:
             badge_icon, badge_title = "🏆", "Perfect Score! Official Campus Scholar 🎓"
-            msg = "Incredible! You know Apex College inside out! You are 100% campus ready."
+            msg = "Incredible! You know VR College of Engineering inside out! You are 100% campus ready."
         elif final_score >= 3:
             badge_icon, badge_title = "🌟", "Campus Whiz! Well Done"
             msg = "Great performance! You know most of the essential college policies and facts."
         else:
             badge_icon, badge_title = "💡", "Good Effort! Fresh Explorer"
-            msg = "Good try! Feel free to ask the AI Chatbot above to explore more about admissions, fees, and hostels."
+            msg = "Good try! Feel free to ask VRBot above to explore more about admissions, fees, and hostels."
 
         st.markdown(
             f"""
@@ -1215,8 +1339,8 @@ with st.container():
 st.markdown(
     """
     <div class="app-footer">
-        <strong>Apex Institute AI-Based College Enquiry Chatbot</strong> • Streamlit Modern Interface<br>
-        Engineered with Natural Language Processing (TF-IDF & Fuzzy Typo Tolerance) • Safe Academic Demonstration Data
+        <strong>VR College of Engineering AI-Based College Enquiry Chatbot (VRBot)</strong> • Streamlit ChatGPT-Style Interface<br>
+        Engineered with Natural Language Processing (TF-IDF & Fuzzy Typo Tolerance) & Google Gemini AI • Safe Academic Demonstration Data
     </div>
     """,
     unsafe_allow_html=True

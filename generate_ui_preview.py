@@ -16,8 +16,8 @@ def generate_ui_preview():
 
     # Sidebar Header / Logo
     draw.rounded_rectangle([(30, 30), (290, 110)], radius=10, fill="#1E40AF")
-    draw.text((50, 48), "🎓 APEX INSTITUTE", fill="#FFFFFF")
-    draw.text((50, 72), "AI Enquiry Assistant v1.0", fill="#93C5FD")
+    draw.text((50, 48), "🎓 VR COLLEGE", fill="#FFFFFF")
+    draw.text((50, 72), "OF ENGINEERING - AI DESK", fill="#93C5FD")
 
     # Sidebar Controls
     draw.text((30, 135), "ENQUIRY CONTROLS", fill="#1E40AF")

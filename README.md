@@ -10,14 +10,16 @@ Designed for prospective students, current scholars, and parents to receive veri
 
 Traditional college enquiry methods (physical administrative desks, congested phone helplines, static PDF prospectuses) result in long waiting times and high staff workloads.
 
-The **AI-Based College Enquiry Chatbot** solves this by:
-- Accepting questions in natural language.
-- Transforming questions into mathematical vector coordinates via **TF-IDF**.
-- Calculating semantic similarity via **Cosine Similarity**.
-- Enforcing a configurable **similarity threshold** to prevent incorrect matches.
-- Providing **conversational intent detection** for greetings, gratitude, and farewells.
-- Preventing **AI hallucination** by retrieving strictly from verified dataset entries.
-- Operating **100% locally** with **zero paid API keys or recurring subscription costs**.
+The **AI-Based College Enquiry Chatbot (VRBot for VR College of Engineering)** solves this by:
+- **ChatGPT-like Friendly Conversational AI**: Communicates naturally and intelligently, using warm, supportive, and polite English with tasteful formatting and emojis.
+- **Multi-Turn Memory & Follow-up Understanding**: Remembers conversation context across turns (e.g., student asks *"What courses are available?"* followed by *"Explain the first one"* or *"What is the fee for that?"*).
+- **Hybrid AI Architecture**: Integrates **Google Gemini 2.5 Flash** (via `google-genai`) for conversational generation, with an intelligent **Local NLP Conversational Agent** fallback for 100% offline, zero-cost operation without requiring an API key.
+- **Strict Grounding (Zero Hallucination)**: Responses are grounded strictly on verified college facts from `college_faq.csv`. Never invents fees or dates.
+- **Intelligent Typo-Tolerance & Fuzzy Matching**: Resilient against student spelling mistakes (`admision`, `hostal`, `scolorship`, `plcmnt`, `librari`).
+- **Student Admission Lead Capture**: Direct inquiry form generating official reference numbers (`VRCE-26-XXXXX`).
+- **Staff & Administrative Desk** (PIN: `admin123`): Real-time analytics, lead tracking, unanswered queries gap tracker, and FAQ CRUD manager.
+- **Voice Assistance**: Speech-to-Text voice query input + HTML5 Speech Synthesis audio playback (Read Aloud 🔊).
+- **Official Prospectus PDF Download**: One-click download of the complete 2026-27 academic prospectus and fee schedule.
 
 ---
 
@@ -26,24 +28,29 @@ The **AI-Based College Enquiry Chatbot** solves this by:
 ```
 AI_College_Enquiry_Chatbot/
 │
-├── app.py                      # Streamlit User Interface application
-├── chatbot.py                  # Core NLP engine (TF-IDF, Cosine Similarity, intent handlers)
-├── data_loader.py              # CSV loader, schema validator, and categorical filtering
-├── college_faq.csv             # Verified FAQ dataset (42 entries across 10 categories)
+├── app.py                      # Modern ChatGPT-style Streamlit User Interface application
+├── chatbot.py                  # Core NLP engine (TF-IDF, Cosine Similarity, fuzzy typo matcher)
+├── ai_agent.py                 # Gemini LLM integration, multi-turn memory & local friendly generator
+├── data_loader.py              # CSV loader, schema validator, and dynamic FAQ CRUD operations
+├── lead_manager.py             # Student leads, feedback ratings, and unanswered queries manager
+├── college_faq.csv             # Verified FAQ dataset (42+ entries across 10 categories)
+├── generate_prospectus.py      # Official academic brochure & prospectus PDF generator
 ├── requirements.txt            # Python dependencies specification
 ├── README.md                   # Installation, setup, and usage documentation
 │
 ├── assets/
 │   ├── logo.png                # College emblem branding image
-│   └── ui_preview.png          # UI screenshot mockup for documentation & slides
+│   ├── ui_preview.png          # UI screenshot mockup for documentation & slides
+│   └── VR_College_Prospectus_2026.pdf # Official generated prospectus
 │
 ├── documentation/
 │   ├── project_report.md       # Complete 20-section mini-project report
 │   ├── presentation.pptx       # Professional 12-slide PowerPoint presentation
-│   └── viva_questions.md       # 30 comprehensive Viva Voce questions & answers
+│   └── viva_questions.md       # 40 comprehensive Viva Voce questions & answers
 │
 └── tests/
-    └── test_chatbot.py         # Pytest automated test suite (26 passing tests)
+    ├── test_chatbot.py         # Pytest core NLP & conversational intent test suite (26 tests)
+    └── test_features.py        # Pytest new features, follow-ups & admin CRUD test suite (7 tests)
 ```
 
 ---
@@ -122,17 +129,36 @@ http://localhost:8501
 
 ---
 
+## 🤖 Setting Up AI Intelligence (Optional Gemini API)
+
+The chatbot runs **100% offline out-of-the-box** using its intelligent Local Conversational Agent.
+
+To enable ChatGPT-like generative responses with Google Gemini:
+1. Get a free API key from [Google AI Studio](https://aistudio.google.com/).
+2. You can provide the API key in any of three easy ways:
+   - **Option A (Interactive UI):** Paste it into the **Google Gemini API Key** field in the sidebar.
+   - **Option B (Environment Variable):** Set it in PowerShell:
+     ```powershell
+     $env:GEMINI_API_KEY="your_api_key_here"
+     ```
+   - **Option C (.env File):** Create a `.env` file in the project root:
+     ```ini
+     GEMINI_API_KEY=your_api_key_here
+     ```
+
+---
+
 ## 🧪 How to Run Automated Tests
 
-To run the complete automated test suite (26 unit and integration tests):
+To run the complete automated test suite (33 unit and integration tests):
 
 ```bash
-python -m pytest tests/test_chatbot.py -v
+python -m pytest tests/ -v
 ```
 
 Expected output:
 ```
-============================= 26 passed in 3.71s ==============================
+============================= 33 passed in 4.10s ==============================
 ```
 
 ---
