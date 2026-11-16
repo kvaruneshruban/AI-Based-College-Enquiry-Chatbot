@@ -9,6 +9,8 @@ voice assistant capabilities, admission lead capture, and an administrative desk
 
 import os
 import json
+import uuid
+import base64
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -33,6 +35,19 @@ from lead_manager import (
 from generate_prospectus import create_prospectus, PROSPECTUS_PATH
 from ai_agent import get_api_key, is_ai_available
 from image_manager import get_all_interactive_cards, get_contextual_chips
+from chat_history_manager import (
+    init_db,
+    get_connection,
+    create_conversation,
+    get_conversation,
+    save_message,
+    get_conversation_messages,
+    list_conversations,
+    delete_conversation,
+    add_recent_search,
+    get_recent_searches,
+    generate_conversation_title
+)
 
 # ---------------------------------------------------------
 # Page Configuration
@@ -45,158 +60,356 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# Modern CSS Stylesheet (ChatGPT-Style Conversational UX)
+# Dataset & Asset Paths (Loaded early for CSS Assets)
 # ---------------------------------------------------------
-st.markdown("""
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+DATASET_PATH = os.path.join(BASE_DIR, "college_faq.csv")
+LOGO_PATH = os.path.join(ASSETS_DIR, "logo.png")
+CAMPUS_BG_IMG = os.path.join(ASSETS_DIR, "campus_bg.png")
+if not os.path.exists(CAMPUS_BG_IMG):
+    CAMPUS_BG_IMG = os.path.join(ASSETS_DIR, "campus_uploaded_raw.png")
+CAMPUS_MAIN_IMG = os.path.join(ASSETS_DIR, "campus_main.jpg")
+LIBRARY_IMG = os.path.join(ASSETS_DIR, "library.jpg")
+LAB_IMG = os.path.join(ASSETS_DIR, "computer_lab.jpg")
+HOSTEL_IMG = os.path.join(ASSETS_DIR, "hostel.jpg")
+SPORTS_IMG = os.path.join(ASSETS_DIR, "sports.jpg")
+STUDENTS_HERO_IMG = os.path.join(ASSETS_DIR, "students_hero.jpg")
+STUDENTS_GROUP_IMG = os.path.join(ASSETS_DIR, "students_group.jpg")
+
+# Load Uploaded Campus Background
+campus_bg_b64 = ""
+if os.path.exists(CAMPUS_BG_IMG):
+    try:
+        with open(CAMPUS_BG_IMG, "rb") as f_img:
+            campus_bg_b64 = base64.b64encode(f_img.read()).decode("utf-8")
+    except Exception:
+        pass
+
+# Ensure Official Prospectus PDF exists
+if not os.path.exists(PROSPECTUS_PATH):
+    try:
+        create_prospectus()
+    except Exception:
+        pass
+
+# ---------------------------------------------------------
+# Modern CSS Stylesheet (Orély University Campus Aesthetic & Chat UX)
+# ---------------------------------------------------------
+MAIN_CSS = """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Righteous&family=Montserrat:wght@800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Righteous&family=Montserrat:wght@700;800;900&display=swap');
 
     html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
-    /* Transparent App Viewport, Header & Sidebar */
-    .stApp,
+    /* 1. Base App Viewport with Illustrated Campus Background */
+    .stApp {
+        background-color: #0E7490 !important;
+        background-image: 
+            linear-gradient(180deg, rgba(255, 255, 255, 0.40) 0%, rgba(240, 253, 250, 0.55) 50%, rgba(224, 242, 254, 0.65) 100%),
+            url('data:image/png;base64,__CAMPUS_BG_B64__') !important;
+        background-size: cover !important;
+        background-position: center top !important;
+        background-attachment: fixed !important;
+        background-repeat: no-repeat !important;
+    }
+
     [data-testid="stAppViewContainer"],
     [data-testid="stHeader"],
-    [data-testid="stSidebar"],
-    [data-testid="stSidebarContent"],
     [data-testid="stToolbar"] {
         background-color: transparent !important;
         background: transparent !important;
     }
 
-    /* Top Navigation / Brand Banner */
-    .brand-hero {
-        background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 58, 138, 0.92) 50%, rgba(37, 99, 235, 0.88) 100%);
-        padding: 24px 28px;
-        border-radius: 18px;
-        color: #FFFFFF;
-        margin-bottom: 20px;
-        box-shadow: 0 12px 28px -5px rgba(30, 58, 138, 0.30);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
+    /* 2. Glassmorphic Left Sidebar (Clean White & Light Teal) */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(240, 253, 250, 0.95) 50%, rgba(224, 242, 254, 0.96) 100%) !important;
+        border-right: 1.5px solid rgba(204, 251, 241, 0.85) !important;
+        box-shadow: 4px 0 24px rgba(15, 118, 110, 0.08) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
     }
-    .hero-top-brand {
+
+    [data-testid="stSidebarContent"] {
+        background: transparent !important;
+    }
+
+    /* Top Navigation Bar */
+    .top-nav-bar {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        flex-wrap: wrap;
-        gap: 12px;
-        padding-bottom: 12px;
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1.5px solid rgba(255, 255, 255, 0.95);
+        border-radius: 16px;
+        padding: 8px 18px;
         margin-bottom: 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 4px 16px rgba(15, 118, 110, 0.08);
+        gap: 12px;
     }
-    .hero-inst-name {
-        font-size: 0.85rem;
-        font-weight: 800;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        color: #93C5FD;
+    .top-nav-left {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 12px;
     }
-    .hero-accred-text {
-        font-size: 0.75rem;
-        color: #CBD5E1;
-        font-weight: 500;
-        margin-top: 2px;
-    }
-    .hero-live-indicator {
-        background: rgba(16, 185, 129, 0.2);
-        color: #A7F3D0;
-        border: 1px solid rgba(52, 211, 153, 0.4);
-        padding: 4px 12px;
-        border-radius: 9999px;
-        font-size: 0.74rem;
-        font-weight: 700;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .pulse-dot {
-        width: 8px;
-        height: 8px;
-        background-color: #34D399;
-        border-radius: 50%;
-        display: inline-block;
-        box-shadow: 0 0 8px #34D399;
-    }
-    .hero-brand-stats-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-        gap: 10px;
-        margin-top: 16px;
-        padding-top: 14px;
-        border-top: 1px solid rgba(255, 255, 255, 0.14);
-    }
-    .hero-stat-item {
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.14);
+    .top-nav-logo-wrap {
+        width: 38px;
+        height: 38px;
+        background: linear-gradient(135deg, #0D9488 0%, #06B6D4 100%);
         border-radius: 10px;
-        padding: 8px 10px;
-        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
     }
-    .hero-stat-val {
-        font-size: 1.12rem;
+    .top-nav-title {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 0.95rem;
         font-weight: 800;
-        color: #F8FAFC;
+        color: #0F172A;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        line-height: 1.2;
+    }
+    .top-nav-subtitle {
+        font-size: 0.72rem;
+        color: #0F766E;
+        font-weight: 600;
+    }
+    .user-profile-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #F0FDFA;
+        border: 1.2px solid #99F6E4;
+        padding: 5px 12px;
+        border-radius: 9999px;
+        box-shadow: 0 2px 6px rgba(13, 148, 136, 0.06);
+        white-space: nowrap;
+    }
+    .profile-avatar {
+        font-size: 1.15rem;
+    }
+    .profile-name {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #0F766E;
         line-height: 1.1;
     }
-    .hero-stat-desc {
+    .profile-status {
         font-size: 0.68rem;
-        font-weight: 600;
-        color: #93C5FD;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        margin-top: 3px;
-    }
-    .brand-title {
-        font-family: 'Righteous', 'Montserrat', 'Plus Jakarta Sans', sans-serif;
-        font-size: 2.15rem;
-        font-weight: 900;
-        margin: 0;
-        letter-spacing: 0.8px;
-        color: #FFFFFF !important;
+        color: #047857;
         display: flex;
         align-items: center;
-        gap: 12px;
-        text-shadow: 
-            0 1px 0 #93C5FD,
-            0 2px 0 #60A5FA,
-            0 3px 0 #3B82F6,
-            0 4px 0 #2563EB,
-            0 5px 0 #1D4ED8,
-            0 6px 0 #1E40AF,
-            0 7px 2px rgba(15, 23, 42, 0.45),
-            0 9px 8px rgba(15, 23, 42, 0.35),
-            0 14px 18px rgba(15, 23, 42, 0.25);
-        transform: perspective(600px) translateZ(0);
-        transition: transform 0.2s ease, text-shadow 0.2s ease;
+        gap: 4px;
+        font-weight: 600;
     }
-    .brand-subtitle {
-        color: #E2E8F0;
-        font-size: 1.02rem;
-        margin-top: 6px;
-        font-weight: 400;
+    .pulse-emerald-dot {
+        width: 7px;
+        height: 7px;
+        background: #10B981;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 6px #10B981;
+        animation: pulseEmerald 2s infinite;
+    }
+    @keyframes pulseEmerald {
+        0% { transform: scale(0.9); opacity: 0.7; }
+        50% { transform: scale(1.2); opacity: 1; }
+        100% { transform: scale(0.9); opacity: 0.7; }
     }
 
-    /* Cards & Containers */
+    /* 3. Welcome Campus Hero Banner with Mascot (Orély Theme) */
+    .campus-welcome-hero {
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.94) 0%, rgba(15, 118, 110, 0.90) 45%, rgba(13, 148, 136, 0.86) 80%, rgba(6, 182, 212, 0.82) 100%);
+        padding: 24px 28px;
+        border-radius: 20px;
+        color: #FFFFFF;
+        margin-bottom: 16px;
+        box-shadow: 0 14px 32px -4px rgba(15, 118, 110, 0.35);
+        border: 1.5px solid rgba(255, 255, 255, 0.24);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    .hero-left-content {
+        flex: 1 1 580px;
+    }
+    .hero-college-badge {
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        color: #5EEAD4;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+    .hero-portal-heading {
+        font-family: 'Righteous', 'Montserrat', sans-serif;
+        font-size: 2.15rem;
+        font-weight: 900;
+        margin: 0 0 8px 0;
+        letter-spacing: 0.6px;
+        color: #FFFFFF !important;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+    .hero-portal-subtext {
+        font-size: 0.94rem;
+        color: #E2E8F0;
+        line-height: 1.5;
+        margin: 0 0 16px 0;
+        max-width: 780px;
+    }
+    .hero-stats-deck {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .hero-stat-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 12px;
+        padding: 6px 12px;
+    }
+    .hero-stat-pill.highlight-gold {
+        background: rgba(245, 158, 11, 0.25);
+        border-color: rgba(251, 191, 36, 0.55);
+    }
+    .pill-icon {
+        font-size: 1.15rem;
+    }
+    .pill-num {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #FFFFFF;
+        line-height: 1.1;
+    }
+    .pill-lbl {
+        font-size: 0.64rem;
+        color: #A5F3FC;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+    }
+    .highlight-gold .pill-lbl {
+        color: #FEF08A;
+    }
+    .hero-mascot-container {
+        flex-shrink: 0;
+    }
+    .mascot-card-outer {
+        background: rgba(255, 255, 255, 0.14);
+        border: 1.5px solid rgba(255, 255, 255, 0.32);
+        border-radius: 18px;
+        padding: 14px 18px;
+        text-align: center;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        min-width: 155px;
+    }
+    .mascot-icon-display {
+        font-size: 2.6rem;
+        filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
+        margin-bottom: 4px;
+        animation: floatMascot 3s ease-in-out infinite alternate;
+    }
+    @keyframes floatMascot {
+        0% { transform: translateY(0px); }
+        100% { transform: translateY(-5px); }
+    }
+    .mascot-badge-name {
+        font-size: 0.92rem;
+        font-weight: 800;
+        color: #FFFFFF;
+        letter-spacing: 0.4px;
+    }
+    .mascot-badge-role {
+        font-size: 0.70rem;
+        color: #67E8F9;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+    .mascot-live-indicator {
+        background: rgba(16, 185, 129, 0.25);
+        color: #A7F3D0;
+        border: 1px solid rgba(52, 211, 153, 0.45);
+        border-radius: 9999px;
+        font-size: 0.66rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    /* 4. Quick Access Section */
+    .section-label-chip {
+        font-size: 0.82rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: #0F766E;
+        margin: 6px 0 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .quick-access-btn button {
+        background: rgba(255, 255, 255, 0.95) !important;
+        border: 1.5px solid #CCFBF1 !important;
+        border-top: 3.5px solid #0D9488 !important;
+        border-radius: 14px !important;
+        padding: 10px 6px !important;
+        color: #0F172A !important;
+        font-weight: 700 !important;
+        font-size: 0.85rem !important;
+        box-shadow: 0 4px 14px rgba(15, 118, 110, 0.08) !important;
+        transition: all 0.22s ease !important;
+        text-align: center !important;
+        height: 62px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+    .quick-access-btn button:hover {
+        background: #FFFFFF !important;
+        border-color: #2DD4BF !important;
+        border-top-color: #0F766E !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 22px rgba(13, 148, 136, 0.22) !important;
+        color: #0F766E !important;
+    }
+
+    /* 5. Modern Cards & Containers */
     .modern-card {
-        background: rgba(255, 255, 255, 0.88);
-        border: 1px solid rgba(226, 232, 240, 0.9);
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(204, 251, 241, 0.9);
         border-radius: 14px;
         padding: 16px;
         margin-bottom: 12px;
-        box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 14px -2px rgba(15, 118, 110, 0.06);
         backdrop-filter: blur(10px);
     }
     .card-title {
-        font-size: 1.02rem;
-        font-weight: 700;
-        color: #1E3A8A;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #0F766E;
         margin-bottom: 10px;
         display: flex;
         align-items: center;
@@ -210,9 +423,9 @@ st.markdown("""
         gap: 4px;
         font-size: 0.74rem;
         font-weight: 600;
-        background-color: #EFF6FF;
-        color: #1D4ED8;
-        border: 1px solid #BFDBFE;
+        background-color: #F0FDFA;
+        color: #0F766E;
+        border: 1px solid #99F6E4;
         padding: 2px 8px;
         border-radius: 9999px;
     }
@@ -235,9 +448,9 @@ st.markdown("""
         gap: 4px;
         font-size: 0.74rem;
         font-weight: 700;
-        background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-        color: #4338CA;
-        border: 1px solid #C7D2FE;
+        background: linear-gradient(135deg, #F0FDFA 0%, #E0F2FE 100%);
+        color: #0284C7;
+        border: 1px solid #BAE6FD;
         padding: 2px 8px;
         border-radius: 9999px;
         margin-left: 4px;
@@ -274,16 +487,16 @@ st.markdown("""
         margin-top: 6px;
         padding: 5px 10px;
         background: #F8FAFC;
-        border-left: 3px solid #3B82F6;
+        border-left: 3px solid #0D9488;
         border-radius: 0 6px 6px 0;
     }
 
     /* Stat Box in Sidebar */
     .stat-box {
-        background: rgba(255, 255, 255, 0.65) !important;
+        background: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
-        border: 1px solid rgba(226, 232, 240, 0.85);
+        border: 1px solid rgba(204, 251, 241, 0.95);
         border-radius: 10px;
         padding: 12px;
         text-align: center;
@@ -291,7 +504,7 @@ st.markdown("""
     .stat-number {
         font-size: 1.5rem;
         font-weight: 800;
-        color: #1E40AF;
+        color: #0F766E;
         line-height: 1.1;
     }
     .stat-label {
@@ -329,34 +542,672 @@ st.markdown("""
         text-align: center;
         padding: 24px 0 12px 0;
         margin-top: 36px;
-        border-top: 1px solid #E2E8F0;
-        color: #64748B;
+        border-top: 1px solid rgba(204, 251, 241, 0.8);
+        color: #475569;
         font-size: 0.85rem;
     }
+
+    /* Sidebar College Branding Card */
+    .sidebar-brand-card {
+        background: linear-gradient(145deg, #FFFFFF 0%, #F0FDFA 100%);
+        border: 1px solid rgba(204, 251, 241, 0.95);
+        border-radius: 16px;
+        padding: 16px 14px 14px 14px;
+        box-shadow: 0 4px 16px -2px rgba(15, 118, 110, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+        margin-bottom: 18px;
+        margin-top: -6px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .sidebar-brand-card:hover {
+        box-shadow: 0 8px 24px -4px rgba(15, 118, 110, 0.14);
+        border-color: #5EEAD4;
+    }
+    .sidebar-brand-content {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+    }
+    .sidebar-logo-frame {
+        flex-shrink: 0;
+        width: 72px;
+        height: 72px;
+        background: linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%);
+        border-radius: 16px;
+        border: 2px solid #5EEAD4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px;
+        box-shadow: 0 4px 10px rgba(15, 118, 110, 0.12);
+    }
+    .sidebar-logo-img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        border-radius: 10px;
+        display: block;
+    }
+    .sidebar-text-col {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-width: 0;
+        flex: 1;
+    }
+    .sidebar-brand-title {
+        font-family: 'Montserrat', 'Plus Jakarta Sans', sans-serif;
+        font-size: 1.12rem;
+        font-weight: 900;
+        color: #0F766E;
+        letter-spacing: 0.6px;
+        line-height: 1.22;
+        margin: 0 0 6px 0;
+        text-transform: uppercase;
+        word-break: normal;
+        overflow-wrap: break-word;
+    }
+    .sidebar-badges-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 4px;
+    }
+    .sidebar-badge-aicte {
+        background: #F0FDFA;
+        color: #0F766E;
+        border: 1px solid #99F6E4;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 6px;
+        white-space: nowrap;
+        letter-spacing: 0.2px;
+    }
+    .sidebar-badge-estd {
+        background: #FEF3C7;
+        color: #92400E;
+        border: 1px solid #FDE68A;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 6px;
+        white-space: nowrap;
+        letter-spacing: 0.2px;
+    }
+    .sidebar-sub-accred {
+        font-size: 0.70rem;
+        color: #475569;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+    }
+    .sidebar-brand-divider {
+        height: 2px;
+        background: linear-gradient(90deg, #0D9488 0%, #5EEAD4 60%, transparent 100%);
+        border-radius: 2px;
+        margin-top: 13px;
+    }
+
+    /* Sidebar Navigation Styles */
+    .sidebar-section-header {
+        font-size: 0.76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.9px;
+        color: #0F766E;
+        margin: 16px 0 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* ChatGPT New Chat Button */
+    .chatgpt-new-chat-btn button {
+        background: linear-gradient(135deg, #0D9488 0%, #0284C7 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        font-weight: 700 !important;
+        font-size: 0.92rem !important;
+        border-radius: 10px !important;
+        padding: 10px 14px !important;
+        box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25) !important;
+        transition: all 0.2s ease !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        width: 100% !important;
+        margin-bottom: 8px !important;
+    }
+    .chatgpt-new-chat-btn button:hover {
+        background: linear-gradient(135deg, #0F766E 0%, #0369A1 100%) !important;
+        box-shadow: 0 6px 16px rgba(13, 148, 136, 0.35) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* Previous Conversations List */
+    .chatgpt-conv-btn button {
+        text-align: left !important;
+        justify-content: flex-start !important;
+        font-size: 0.81rem !important;
+        font-weight: 500 !important;
+        padding: 7px 10px !important;
+        border-radius: 8px !important;
+        background: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        color: #334155 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        transition: all 0.15s ease !important;
+        width: 100% !important;
+    }
+    .chatgpt-conv-btn button:hover {
+        background: #F0FDFA !important;
+        border-color: #5EEAD4 !important;
+        color: #0F766E !important;
+    }
+
+    /* Active Conversation Highlight */
+    .chatgpt-conv-active button {
+        background: #F0FDFA !important;
+        border: 1.5px solid #14B8A6 !important;
+        color: #0F766E !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 8px rgba(20, 184, 166, 0.20) !important;
+    }
+
+    /* Delete Conversation Button */
+    .chatgpt-del-btn button {
+        padding: 6px 0 !important;
+        background: transparent !important;
+        border: 1px solid transparent !important;
+        color: #94A3B8 !important;
+        border-radius: 8px !important;
+        font-size: 0.82rem !important;
+        transition: all 0.15s ease !important;
+    }
+    .chatgpt-del-btn button:hover {
+        color: #DC2626 !important;
+        background: #FEE2E2 !important;
+        border-color: #FCA5A5 !important;
+    }
+
+    /* Recent Searches Pill Buttons */
+    .recent-search-item button {
+        text-align: left !important;
+        justify-content: flex-start !important;
+        font-size: 0.80rem !important;
+        font-weight: 500 !important;
+        padding: 6px 9px !important;
+        border-radius: 8px !important;
+        background: #FFFFFF !important;
+        border: 1px solid #CCFBF1 !important;
+        color: #134E4A !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        transition: all 0.15s ease !important;
+        width: 100% !important;
+        margin-bottom: 3px !important;
+    }
+    .recent-search-item button:hover {
+        background: #F0FDFA !important;
+        border-color: #5EEAD4 !important;
+        color: #0F766E !important;
+    }
+
+    /* ========================================================= */
+    /* PREMIUM GLOWING CHAT INPUT BOX & CONTROLS                 */
+    /* ========================================================= */
+    
+    @keyframes chatInputGlowPulse {
+        0% {
+            border-color: #5EEAD4;
+            box-shadow: 0 0 14px rgba(13, 148, 136, 0.28), 
+                        0 0 28px rgba(6, 182, 212, 0.18), 
+                        0 2px 8px rgba(15, 23, 42, 0.05);
+        }
+        50% {
+            border-color: #2DD4BF;
+            box-shadow: 0 0 22px rgba(13, 148, 136, 0.45), 
+                        0 0 38px rgba(6, 182, 212, 0.32), 
+                        0 4px 14px rgba(13, 148, 136, 0.15);
+        }
+        100% {
+            border-color: #5EEAD4;
+            box-shadow: 0 0 14px rgba(13, 148, 136, 0.28), 
+                        0 0 28px rgba(6, 182, 212, 0.18), 
+                        0 2px 8px rgba(15, 23, 42, 0.05);
+        }
+    }
+
+    @keyframes sparkleFloat {
+        0% { transform: translateY(0px) rotate(0deg); opacity: 0.85; }
+        100% { transform: translateY(-2px) rotate(10deg); opacity: 1; filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.9)); }
+    }
+
+    [data-testid="stChatInput"] {
+        padding-top: 8px !important;
+        padding-bottom: 14px !important;
+        background: transparent !important;
+    }
+
+    [data-testid="stChatInput"] > div {
+        background: rgba(255, 255, 255, 0.96) !important;
+        backdrop-filter: blur(14px) !important;
+        -webkit-backdrop-filter: blur(14px) !important;
+        border: 2px solid #5EEAD4 !important;
+        border-radius: 28px !important;
+        animation: chatInputGlowPulse 4s ease-in-out infinite !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        padding: 5px 10px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    [data-testid="stChatInput"] > div::before {
+        content: "✨";
+        font-size: 1.2rem;
+        margin-left: 12px;
+        margin-right: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.7));
+        cursor: default;
+        user-select: none;
+        animation: sparkleFloat 3s ease-in-out infinite alternate;
+    }
+
+    [data-testid="stChatInput"] > div:hover {
+        border-color: #2DD4BF !important;
+        background: #FFFFFF !important;
+        box-shadow: 0 0 22px rgba(13, 148, 136, 0.42), 
+                    0 0 38px rgba(6, 182, 212, 0.32), 
+                    0 4px 16px rgba(13, 148, 136, 0.14) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    [data-testid="stChatInput"] > div:focus-within {
+        border-color: #0D9488 !important;
+        background: #FFFFFF !important;
+        box-shadow: 0 0 0 2.5px rgba(13, 148, 136, 0.25), 
+                    0 0 28px rgba(13, 148, 136, 0.55), 
+                    0 0 50px rgba(6, 182, 212, 0.42) !important;
+        animation: none !important;
+        transform: translateY(-1px) !important;
+    }
+
+    [data-testid="stChatInput"] textarea {
+        background: transparent !important;
+        color: #0F172A !important;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-size: 0.94rem !important;
+        font-weight: 500 !important;
+        line-height: 1.5 !important;
+        padding: 9px 12px !important;
+        border: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: #64748B !important;
+        font-weight: 400 !important;
+        font-size: 0.91rem !important;
+        opacity: 0.88 !important;
+    }
+
+    [data-testid="stChatInput"] button {
+        background: linear-gradient(135deg, #0D9488 0%, #06B6D4 100%) !important;
+        border: none !important;
+        border-radius: 50% !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        min-width: 38px !important;
+        padding: 0 !important;
+        margin-right: 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 3px 12px rgba(13, 148, 136, 0.38) !important;
+        cursor: pointer !important;
+        transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+
+    [data-testid="stChatInput"] button:hover {
+        transform: scale(1.09) !important;
+        background: linear-gradient(135deg, #0F766E 0%, #0891B2 100%) !important;
+        box-shadow: 0 0 16px rgba(13, 148, 136, 0.70), 
+                    0 0 28px rgba(6, 182, 212, 0.55) !important;
+    }
+
+    [data-testid="stChatInput"] button:active {
+        transform: scale(0.93) !important;
+        box-shadow: 0 0 8px rgba(13, 148, 136, 0.40) !important;
+    }
+
+    [data-testid="stChatInput"] button svg {
+        fill: #FFFFFF !important;
+        stroke: #FFFFFF !important;
+        width: 18px !important;
+        height: 18px !important;
+        transition: transform 0.15s ease !important;
+    }
+
+    [data-testid="stChatInput"] button:hover svg {
+        transform: translateX(1.5px) translateY(-1px) !important;
+    }
+
+    [data-testid="stBottom"], [data-testid="stBottom"] > div {
+        background: transparent !important;
+    }
+
+    /* ========================================================= */
+    /* CHAT AREA IMPROVEMENTS: EXPANDED 90-95% FULL WIDTH CONTAINER */
+    /* ========================================================= */
+
+    /* Main Content Viewport: Clean Spacing & Center Alignment */
+    .block-container,
+    [data-testid="stMainBlockContainer"] {
+        max-width: 95% !important;
+        width: 95% !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 6rem !important;
+        padding-left: 1.2rem !important;
+        padding-right: 1.2rem !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* Chat Stream Header */
+    .chat-stream-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 18px !important;
+        padding: 0 4px !important;
+        width: 95% !important;
+        max-width: 1200px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    
+    [data-testid="stChatMessage"] {
+        padding: 8px 12px !important;
+        margin-bottom: 22px !important;
+        gap: 14px !important;
+        border-radius: 18px !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+    }
+
+    /* User Message Bubble: Compact & Distinctive (Preserved Design) */
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]),
+    [data-testid="stChatMessage"]:has([aria-label="🧑‍🎓"]) {
+        width: fit-content !important;
+        max-width: 82% !important;
+        margin-left: auto !important;
+        margin-right: 2.5% !important;
+        background: linear-gradient(135deg, #F0FDFA 0%, #E0F2FE 100%) !important;
+        border: 1.5px solid #99F6E4 !important;
+        border-radius: 18px 18px 4px 18px !important;
+        box-shadow: 0 2px 10px rgba(13, 148, 136, 0.08) !important;
+        margin-bottom: 20px !important;
+        padding: 12px 20px !important;
+    }
+
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]):hover,
+    [data-testid="stChatMessage"]:has([aria-label="🧑‍🎓"]):hover {
+        box-shadow: 0 4px 14px rgba(13, 148, 136, 0.14) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* AI Response Box: 90-95% Full Width Expanded Container */
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]),
+    [data-testid="stChatMessage"]:has([aria-label="🤖"]) {
+        width: 95% !important;
+        max-width: 1200px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        background: #FFFFFF !important;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F0F9FF 100%) !important;
+        border: 1.5px solid #BAE6FD !important;
+        border-top: 4px solid #0E7490 !important;
+        border-radius: 18px !important;
+        box-shadow: 0 8px 28px -4px rgba(14, 116, 144, 0.10), 0 2px 8px -2px rgba(15, 23, 42, 0.04) !important;
+        padding: 24px 30px !important;
+        margin-bottom: 26px !important;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease !important;
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        display: flex !important;
+    }
+
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]):hover,
+    [data-testid="stChatMessage"]:has([aria-label="🤖"]):hover {
+        box-shadow: 0 12px 36px rgba(14, 116, 144, 0.15), 0 4px 12px rgba(15, 23, 42, 0.06) !important;
+        border-color: #38BDF8 !important;
+    }
+
+    [data-testid="stChatMessageContent"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 1 1 100% !important;
+    }
+
+    [data-testid="stChatMessageAvatarUser"],
+    [data-testid="stChatMessageAvatarAssistant"] {
+        border-radius: 50% !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+        border: 2px solid #FFFFFF !important;
+    }
+
+    .chat-user-text {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #0F172A;
+        line-height: 1.55;
+    }
+
+    /* AI Writing Block Header */
+    .ai-wb-header {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding-bottom: 14px !important;
+        margin-bottom: 16px !important;
+        border-bottom: 1.5px solid #E0F2FE !important;
+        flex-wrap: wrap !important;
+        gap: 10px !important;
+        width: 100% !important;
+    }
+    .ai-wb-title-group {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+    }
+    .ai-wb-icon {
+        font-size: 20px !important;
+        background: #E0F2FE !important;
+        width: 38px !important;
+        height: 38px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 10px !important;
+        border: 1px solid #BAE6FD !important;
+        box-shadow: 0 2px 6px rgba(14, 116, 144, 0.08) !important;
+    }
+    .ai-wb-heading {
+        font-size: 1.05rem !important;
+        font-weight: 800 !important;
+        color: #0E7490 !important;
+        letter-spacing: -0.2px !important;
+        line-height: 1.25 !important;
+    }
+    .ai-wb-subtitle {
+        font-size: 0.74rem !important;
+        font-weight: 500 !important;
+        color: #64748B !important;
+        margin-top: 1px !important;
+    }
+    .ai-wb-badge {
+        background: linear-gradient(135deg, #0284C7 0%, #0E7490 100%) !important;
+        color: #FFFFFF !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        padding: 3px 10px !important;
+        border-radius: 9999px !important;
+        letter-spacing: 0.2px !important;
+        box-shadow: 0 2px 6px rgba(14, 116, 144, 0.2) !important;
+    }
+
+    /* AI Response Formatting & Typography */
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) p {
+        color: #0F172A !important;
+        font-size: 0.96rem !important;
+        line-height: 1.7 !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) strong,
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) b {
+        color: #0C4A6E !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) h1,
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) h2,
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) h3,
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) h4 {
+        color: #0E7490 !important;
+        font-weight: 800 !important;
+        margin-top: 16px !important;
+        margin-bottom: 10px !important;
+        letter-spacing: -0.2px !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) ul,
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) ol {
+        margin: 10px 0 14px 22px !important;
+        padding-left: 8px !important;
+        color: #0F172A !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) li {
+        margin-bottom: 7px !important;
+        line-height: 1.65 !important;
+    }
+
+    /* Structured Tables: 100% Full Available Width */
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) table {
+        width: 100% !important;
+        min-width: 100% !important;
+        display: table !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        border: 1.5px solid #BAE6FD !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        margin: 18px 0 !important;
+        background: #FFFFFF !important;
+        box-shadow: 0 3px 12px rgba(14, 116, 144, 0.06) !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) th {
+        background: linear-gradient(135deg, #0E7490 0%, #0284C7 100%) !important;
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        padding: 12px 18px !important;
+        text-align: left !important;
+        font-size: 0.90rem !important;
+        letter-spacing: 0.2px !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) td {
+        padding: 11px 18px !important;
+        border-bottom: 1px solid #E2E8F0 !important;
+        color: #1E293B !important;
+        font-size: 0.90rem !important;
+        line-height: 1.5 !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) tr:last-child td {
+        border-bottom: none !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) tr:nth-child(even) td {
+        background: #F8FAFC !important;
+    }
+    [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) tr:hover td {
+        background: #F0FDF4 !important;
+    }
+
+    /* Action Buttons inside Chat (Regenerate & Feedback) */
+    [data-testid="stChatMessage"] div.stButton > button {
+        border-radius: 8px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        padding: 5px 12px !important;
+        height: 34px !important;
+        line-height: 1 !important;
+        transition: all 0.2s ease !important;
+        border: 1.2px solid #BAE6FD !important;
+        background: #F0F9FF !important;
+        color: #0369A1 !important;
+    }
+    [data-testid="stChatMessage"] div.stButton > button:hover {
+        background: #E0F2FE !important;
+        border-color: #38BDF8 !important;
+        color: #0284C7 !important;
+        box-shadow: 0 2px 8px rgba(14, 116, 144, 0.15) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* Bottom Controls & Voice Dock: Max width aligned with 95% answer box */
+    [data-testid="stChatInput"],
+    .dock-container {
+        max-width: 1200px !important;
+        width: 95% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+
+    /* Responsive Width Controls for Desktop, Tablet, Mobile */
+    @media (max-width: 1024px) {
+        .block-container,
+        [data-testid="stMainBlockContainer"],
+        .chat-stream-header,
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]),
+        [data-testid="stChatMessage"]:has([aria-label="🤖"]),
+        [data-testid="stChatInput"],
+        .dock-container {
+            width: 96% !important;
+            max-width: 96% !important;
+        }
+    }
+    @media (max-width: 768px) {
+        .block-container,
+        [data-testid="stMainBlockContainer"],
+        .chat-stream-header,
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]),
+        [data-testid="stChatMessage"]:has([aria-label="🤖"]),
+        [data-testid="stChatInput"],
+        .dock-container {
+            width: 98% !important;
+            max-width: 98% !important;
+            padding: 16px 14px !important;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]),
+        [data-testid="stChatMessage"]:has([aria-label="🧑‍🎓"]) {
+            max-width: 92% !important;
+            margin-right: 1% !important;
+        }
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) table {
+            display: block !important;
+            overflow-x: auto !important;
+            white-space: nowrap !important;
+        }
+    }
 </style>
-""", unsafe_allow_html=True)
+"""
 
-# ---------------------------------------------------------
-# Dataset & Asset Paths
-# ---------------------------------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ASSETS_DIR = os.path.join(BASE_DIR, "assets")
-DATASET_PATH = os.path.join(BASE_DIR, "college_faq.csv")
-LOGO_PATH = os.path.join(ASSETS_DIR, "logo.png")
-CAMPUS_MAIN_IMG = os.path.join(ASSETS_DIR, "campus_main.jpg")
-LIBRARY_IMG = os.path.join(ASSETS_DIR, "library.jpg")
-LAB_IMG = os.path.join(ASSETS_DIR, "computer_lab.jpg")
-HOSTEL_IMG = os.path.join(ASSETS_DIR, "hostel.jpg")
-SPORTS_IMG = os.path.join(ASSETS_DIR, "sports.jpg")
-STUDENTS_HERO_IMG = os.path.join(ASSETS_DIR, "students_hero.jpg")
-STUDENTS_GROUP_IMG = os.path.join(ASSETS_DIR, "students_group.jpg")
-
-# Ensure Official Prospectus PDF exists
-if not os.path.exists(PROSPECTUS_PATH):
-    try:
-        create_prospectus()
-    except Exception:
-        pass
+st.markdown(MAIN_CSS.replace("__CAMPUS_BG_B64__", campus_bg_b64), unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # Chatbot Model Initialization
@@ -379,10 +1230,11 @@ except Exception as e:
     st.error(f"⚠️ Unexpected Error loading chatbot: {str(e)}")
 
 # ---------------------------------------------------------
-# Session State Management
+# Session State Management & Conversation Helpers
 # ---------------------------------------------------------
-if "messages" not in st.session_state:
-    st.session_state.messages = [
+def get_initial_messages():
+    """Returns the default initial welcome message for VRBot."""
+    return [
         {
             "role": "assistant",
             "content": (
@@ -406,17 +1258,188 @@ if "messages" not in st.session_state:
         }
     ]
 
+
+def get_answer_heading_and_icon(category=None, matched_q=None, content=""):
+    """Returns a topical heading and emoji icon for the AI response box (ChatGPT Writing Block UI)."""
+    cat = (category or "").strip()
+    category_map = {
+        "Courses": ("Academic Programs & Degree Courses", "🎓"),
+        "Admission": ("Admissions Procedure & Eligibility Criteria", "📝"),
+        "Fee": ("Tuition Fees & Complete Payment Schedule", "💰"),
+        "Fees": ("Tuition Fees & Complete Payment Schedule", "💰"),
+        "Hostel": ("Campus Hostels & Residential Facilities", "🏢"),
+        "Placement": ("Campus Placements & Recruiter Records", "💼"),
+        "Scholarship": ("Scholarships & Financial Assistance", "🎖️"),
+        "Library": ("Central Digital Library & Academic Resources", "📚"),
+        "Transport": ("Campus Bus Routes & Connectivity", "🚌"),
+        "Department": ("Academic Departments & Laboratories", "🔬"),
+        "Departments": ("Academic Departments & Laboratories", "🔬"),
+        "Facility": ("Campus Infrastructure & Student Amenities", "🏛️"),
+        "Cutoff": ("Cutoff Marks & Counseling Trends", "📊"),
+        "Contact": ("Admissions Desk & Contact Directory", "📞"),
+        "Greeting": ("Welcome to VR College of Engineering", "👋"),
+        "Gratitude": ("VR College Advisory Assistance", "😊"),
+        "Farewell": ("Wishing You Success on Your Academic Journey", "🌟"),
+    }
+    if cat in category_map:
+        return category_map[cat]
+
+    lower_c = (content or "").lower()
+    if "fee" in lower_c or "tuition" in lower_c:
+        return ("Tuition Fees & Payment Schedule", "💰")
+    elif "course" in lower_c or "b.tech" in lower_c or "degree" in lower_c:
+        return ("Academic Programs & Degree Courses", "🎓")
+    elif "admission" in lower_c or "eligibility" in lower_c or "apply" in lower_c:
+        return ("Admissions & Eligibility Guidance", "📝")
+    elif "hostel" in lower_c or "room" in lower_c or "mess" in lower_c:
+        return ("Campus Hostels & Amenities", "🏢")
+    elif "placement" in lower_c or "recruiter" in lower_c or "package" in lower_c:
+        return ("Placements & Career Opportunities", "💼")
+    elif "scholarship" in lower_c or "concession" in lower_c:
+        return ("Scholarships & Financial Concessions", "🎖️")
+
+    if matched_q:
+        clean = matched_q.strip().rstrip("?")
+        if len(clean) <= 45:
+            return (clean, "📘")
+
+    return ("VR College Official Advisory", "✨")
+
+
+# Pre-initialize clicked_query before the sidebar so sidebar actions can set it
+clicked_query = None
+
+# Initialize Conversation State with SQLite persistence
+if "current_conversation_id" not in st.session_state:
+    recent_convs = list_conversations(limit=1)
+    if recent_convs:
+        latest_id = recent_convs[0]["id"]
+        st.session_state.current_conversation_id = latest_id
+        db_msgs = get_conversation_messages(latest_id)
+        st.session_state.messages = db_msgs if db_msgs else get_initial_messages()
+    else:
+        new_id = uuid.uuid4().hex[:10]
+        st.session_state.current_conversation_id = new_id
+        st.session_state.messages = get_initial_messages()
+elif "messages" not in st.session_state:
+    db_msgs = get_conversation_messages(st.session_state.current_conversation_id)
+    st.session_state.messages = db_msgs if db_msgs else get_initial_messages()
+
 # ---------------------------------------------------------
-# Sidebar: AI Intelligence Engine & System Controls
+# Sidebar: ChatGPT-Style Navigation, AI Engine & System Controls
 # ---------------------------------------------------------
 with st.sidebar:
+    logo_b64 = ""
     if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, use_container_width=True)
+        try:
+            with open(LOGO_PATH, "rb") as img_f:
+                logo_b64 = base64.b64encode(img_f.read()).decode("utf-8")
+        except Exception:
+            pass
+
+    logo_img_html = (
+        f'<img src="data:image/png;base64,{logo_b64}" class="sidebar-logo-img" alt="VR College Logo" />'
+        if logo_b64
+        else '<span style="font-size:2.2rem;">🎓</span>'
+    )
+
+    st.markdown(
+        f"""
+        <div class="sidebar-brand-card">
+            <div class="sidebar-brand-content">
+                <div class="sidebar-logo-frame">
+                    {logo_img_html}
+                </div>
+                <div class="sidebar-text-col">
+                    <div class="sidebar-brand-title">VR COLLEGE OF ENGINEERING</div>
+                    <div class="sidebar-badges-row">
+                        <span class="sidebar-badge-aicte">Approved by AICTE</span>
+                        <span class="sidebar-badge-estd">Estd. 2005</span>
+                    </div>
+                    <div class="sidebar-sub-accred">NAAC 'A+' Accredited Institution</div>
+                </div>
+            </div>
+            <div class="sidebar-brand-divider"></div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # -----------------------------------------------------
+    # 1. ➕ New Chat Button (ChatGPT Style)
+    # -----------------------------------------------------
+    st.markdown('<div class="chatgpt-new-chat-btn">', unsafe_allow_html=True)
+    if st.button("➕ New Chat", use_container_width=True, type="primary", key="btn_new_chat"):
+        new_id = uuid.uuid4().hex[:10]
+        st.session_state.current_conversation_id = new_id
+        st.session_state.messages = get_initial_messages()
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # -----------------------------------------------------
+    # 2. 🔍 Search Conversations
+    # -----------------------------------------------------
+    search_term = st.text_input(
+        "Search conversations",
+        placeholder="🔍 Search conversations...",
+        label_visibility="collapsed",
+        key="search_conversations_input"
+    )
+
+    # -----------------------------------------------------
+    # 3. 🕘 Recent Searches (User's recently asked questions)
+    # -----------------------------------------------------
+    st.markdown('<div class="sidebar-section-header">🕘 Recent Searches</div>', unsafe_allow_html=True)
+    recent_searches_list = get_recent_searches(limit=8)
+    if recent_searches_list:
+        for s_idx, q_text in enumerate(recent_searches_list):
+            st.markdown('<div class="recent-search-item">', unsafe_allow_html=True)
+            if st.button(f"🔍 {q_text}", key=f"recent_s_btn_{s_idx}", use_container_width=True, help="Click to ask this enquiry"):
+                clicked_query = q_text
+            st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.markdown("### 🎓 **VR College of Engineering**")
-        st.caption("Accredited NAAC 'A+' | AICTE Approved")
+        st.caption("No recent searches yet.")
+
+    # -----------------------------------------------------
+    # 4. 📂 Previous Conversations (SQLite Persistent History)
+    # -----------------------------------------------------
+    st.markdown('<div class="sidebar-section-header">📂 Previous Conversations</div>', unsafe_allow_html=True)
+    convs = list_conversations(search_query=search_term, limit=20)
+
+    if not convs:
+        if search_term:
+            st.caption(f"No chats found matching '{search_term}'")
+        else:
+            st.caption("No saved conversations yet. Ask a question to begin!")
+    else:
+        for c in convs:
+            is_active = (c["id"] == st.session_state.get("current_conversation_id"))
+            col_c1, col_c2 = st.columns([0.82, 0.18])
+            with col_c1:
+                title_label = f"👉 {c['title']}" if is_active else f"💬 {c['title']}"
+                st.markdown(f'<div class="chatgpt-conv-btn {"chatgpt-conv-active" if is_active else ""}">', unsafe_allow_html=True)
+                if st.button(title_label, key=f"conv_select_{c['id']}", use_container_width=True, help=f"Last updated: {c['updated_at']}"):
+                    st.session_state.current_conversation_id = c["id"]
+                    db_msgs = get_conversation_messages(c["id"])
+                    st.session_state.messages = db_msgs if db_msgs else get_initial_messages()
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
+            with col_c2:
+                st.markdown('<div class="chatgpt-del-btn">', unsafe_allow_html=True)
+                if st.button("🗑️", key=f"conv_del_{c['id']}", help="Delete this conversation", use_container_width=True):
+                    delete_conversation(c["id"])
+                    if st.session_state.get("current_conversation_id") == c["id"]:
+                        new_id = uuid.uuid4().hex[:10]
+                        st.session_state.current_conversation_id = new_id
+                        st.session_state.messages = get_initial_messages()
+                    st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
+
+    # -----------------------------------------------------
+    # 5. AI Engine & System Controls
+    # -----------------------------------------------------
     st.markdown("#### 🧠 **AI Intelligence Engine**")
 
     # API Key Configuration
@@ -518,18 +1541,12 @@ with st.sidebar:
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         if st.button("🗑️ Clear Chat", use_container_width=True, help="Clear current conversation history"):
-            st.session_state.messages = [
-                {
-                    "role": "assistant",
-                    "content": "Conversation cleared! How can I help you today? Feel free to ask about courses, fees, or admissions. 😊",
-                    "meta": {
-                        "visual": {
-                            "image": "campus_main.jpg",
-                            "caption": "🏛️ VR College of Engineering 50-Acre Campus"
-                        }
-                    }
-                }
-            ]
+            conv_id = st.session_state.get("current_conversation_id")
+            if conv_id:
+                delete_conversation(conv_id)
+            new_id = uuid.uuid4().hex[:10]
+            st.session_state.current_conversation_id = new_id
+            st.session_state.messages = get_initial_messages()
             st.rerun()
 
     with col_btn2:
@@ -565,45 +1582,21 @@ with st.sidebar:
     )
 
 # ---------------------------------------------------------
-# Flagship College Brand Hero Section
+# Top Navigation Bar: Branding, Language Translator & Profile
 # ---------------------------------------------------------
-col_hero_brand, col_hero_visual = st.columns([1.65, 1.0], gap="large")
+col_nav_brand, col_nav_ctrl = st.columns([1.5, 1.0], gap="medium")
 
-with col_hero_brand:
+with col_nav_brand:
     st.markdown(
         """
-        <div class="brand-hero">
-            <div class="hero-top-brand">
+        <div class="top-nav-bar" style="margin-bottom:0;">
+            <div class="top-nav-left">
+                <div class="top-nav-logo-wrap">
+                    <span style="font-size: 1.3rem;">🏛️</span>
+                </div>
                 <div>
-                    <div class="hero-inst-name">🏛️ VR COLLEGE OF ENGINEERING</div>
-                    <div class="hero-accred-text">Approved by AICTE • NAAC 'A+' Grade • Estd. 2005 • Affiliated to Tech University</div>
-                </div>
-                <div class="hero-live-indicator">
-                    <span class="pulse-dot"></span> 24/7 AI Desk Online
-                </div>
-            </div>
-            <div>
-                <h1 class="brand-title">🎓 VR College of Engineering AI Campus Portal</h1>
-                <div class="brand-subtitle">
-                    Intelligent Conversational Student Enquiry & Admissions Assistant powered by <strong>Natural AI</strong>
-                </div>
-            </div>
-            <div class="hero-brand-stats-row">
-                <div class="hero-stat-item">
-                    <div class="hero-stat-val">NAAC 'A+'</div>
-                    <div class="hero-stat-desc">Accreditation</div>
-                </div>
-                <div class="hero-stat-item">
-                    <div class="hero-stat-val">₹ 14.0 LPA</div>
-                    <div class="hero-stat-desc">Highest CTC</div>
-                </div>
-                <div class="hero-stat-item">
-                    <div class="hero-stat-val">5,000+</div>
-                    <div class="hero-stat-desc">Enrolled Students</div>
-                </div>
-                <div class="hero-stat-item">
-                    <div class="hero-stat-val">50+ Acres</div>
-                    <div class="hero-stat-desc">Green Wi-Fi Campus</div>
+                    <div class="top-nav-title">VR College of Engineering</div>
+                    <div class="top-nav-subtitle">Approved by AICTE • NAAC 'A+' Grade • Estd. 2005 • Affiliated to Tech University</div>
                 </div>
             </div>
         </div>
@@ -611,42 +1604,145 @@ with col_hero_brand:
         unsafe_allow_html=True
     )
 
-with col_hero_visual:
-    c_s1, c_s2 = st.columns(2)
-    with c_s1:
-        if os.path.exists(STUDENTS_HERO_IMG):
-            st.image(STUDENTS_HERO_IMG, caption="🎓 Academic Study & Peer Teams", use_container_width=True)
-    with c_s2:
-        if os.path.exists(STUDENTS_GROUP_IMG):
-            st.image(STUDENTS_GROUP_IMG, caption="🎉 Student Community & Clubs", use_container_width=True)
-
-    st.markdown(
-        """
-        <div class="modern-card" style="padding: 10px 14px; margin-top: 4px; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.75);">
-            <div style="font-size: 0.8rem; font-weight: 700; color: #1E40AF;">
-                🌟 Admissions Open 2026-27
+with col_nav_ctrl:
+    c_lang_col, c_prof_col = st.columns([1.1, 1.3], gap="small")
+    with c_lang_col:
+        chosen_language = st.selectbox(
+            "Language Translator",
+            ["🌐 English", "🌐 हिंदी (Hindi)", "🌐 తెలుగు (Telugu)", "🌐 தமிழ் (Tamil)", "🌐 ಕನ್ನಡ (Kannada)", "🌐 मराठी (Marathi)"],
+            index=0,
+            label_visibility="collapsed",
+            help="Select your consultation language"
+        )
+    with c_prof_col:
+        st.markdown(
+            """
+            <div class="user-profile-badge">
+                <div class="profile-avatar">🧑‍🎓</div>
+                <div class="profile-meta">
+                    <div class="profile-name">Student Scholar</div>
+                    <div class="profile-status"><span class="pulse-emerald-dot"></span> 24/7 Consultation Desk</div>
+                </div>
             </div>
-            <div style="font-size: 0.72rem; color: #059669; font-weight: 700; background: #DCFCE7; padding: 2px 8px; border-radius: 9999px;">
-                92% Placement Rate
+            """,
+            unsafe_allow_html=True
+        )
+
+st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# Welcome Banner: Mascot, College Intro & Illustrated Scenery
+# ---------------------------------------------------------
+st.markdown(
+    """
+    <div class="campus-welcome-hero">
+        <div class="hero-left-content">
+            <div class="hero-college-badge">
+                <span>🏛️</span> VR COLLEGE OF ENGINEERING • NAAC 'A+' INSTITUTION
+            </div>
+            <h1 class="hero-portal-heading">
+                🎓 Welcome to VR College AI Campus Portal
+            </h1>
+            <p class="hero-portal-subtext">
+                Explore our 50-acre Wi-Fi green campus, discover top engineering &amp; technology degrees, calculate tuition and hostel fees, and receive immediate admissions advisory 24/7 from our intelligent campus assistant.
+            </p>
+            <div class="hero-stats-deck">
+                <div class="hero-stat-pill">
+                    <span class="pill-icon">🏆</span>
+                    <div>
+                        <div class="pill-num">NAAC 'A+'</div>
+                        <div class="pill-lbl">Accredited</div>
+                    </div>
+                </div>
+                <div class="hero-stat-pill">
+                    <span class="pill-icon">💼</span>
+                    <div>
+                        <div class="pill-num">₹ 14.0 LPA</div>
+                        <div class="pill-lbl">Highest Package</div>
+                    </div>
+                </div>
+                <div class="hero-stat-pill">
+                    <span class="pill-icon">🎓</span>
+                    <div>
+                        <div class="pill-num">92%</div>
+                        <div class="pill-lbl">Placements</div>
+                    </div>
+                </div>
+                <div class="hero-stat-pill">
+                    <span class="pill-icon">🌳</span>
+                    <div>
+                        <div class="pill-num">50+ Acres</div>
+                        <div class="pill-lbl">Green Campus</div>
+                    </div>
+                </div>
+                <div class="hero-stat-pill highlight-gold">
+                    <span class="pill-icon">🌟</span>
+                    <div>
+                        <div class="pill-num">2026-27</div>
+                        <div class="pill-lbl">Admissions Open</div>
+                    </div>
+                </div>
             </div>
         </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
+        <div class="hero-mascot-container">
+            <div class="mascot-card-outer">
+                <div class="mascot-icon-display">🤖</div>
+                <div class="mascot-badge-name">VRBot Mascot</div>
+                <div class="mascot-badge-role">AI Admissions Counselor</div>
+                <div class="mascot-live-indicator">
+                    <span class="pulse-emerald-dot"></span> 24/7 Desk Online
+                </div>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # ---------------------------------------------------------
-# Two-Column Modern Layout: Chat on Left, Interactive Hub on Right
+# Quick Access Cards (Courses, Fee Structure, Hostel, Placements, Admissions)
 # ---------------------------------------------------------
-col_chat, col_hub = st.columns([1.65, 1.0], gap="large")
+st.markdown("<div class='section-label-chip'>⚡ Quick Access Portals (Click to Explore)</div>", unsafe_allow_html=True)
+c_qa1, c_qa2, c_qa3, c_qa4, c_qa5 = st.columns(5)
 
-clicked_query = None
+with c_qa1:
+    st.markdown('<div class="quick-access-btn">', unsafe_allow_html=True)
+    if st.button("🎓 Courses\nB.Tech & PG", key="qa_courses", use_container_width=True, help="Explore engineering & PG degree programs"):
+        clicked_query = "What undergraduate and postgraduate courses are offered at VR College?"
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c_qa2:
+    st.markdown('<div class="quick-access-btn">', unsafe_allow_html=True)
+    if st.button("💰 Fee Structure\nTuition & Aid", key="qa_fees", use_container_width=True, help="Check tuition fees, installments, and scholarships"):
+        clicked_query = "What is the annual tuition fee for B.Tech and installment options?"
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c_qa3:
+    st.markdown('<div class="quick-access-btn">', unsafe_allow_html=True)
+    if st.button("🏢 Hostel\nAC Rooms & Mess", key="qa_hostel", use_container_width=True, help="Hostel facilities, food menu, and security"):
+        clicked_query = "What are the hostel facilities and fee structure for boys and girls?"
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c_qa4:
+    st.markdown('<div class="quick-access-btn">', unsafe_allow_html=True)
+    if st.button("💼 Placements\n14 LPA CTC", key="qa_placements", use_container_width=True, help="Campus recruitment statistics and top recruiters"):
+        clicked_query = "What was the highest and average salary package in recent placements?"
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c_qa5:
+    st.markdown('<div class="quick-access-btn">', unsafe_allow_html=True)
+    if st.button("📋 Admissions\nApply 2026-27", key="qa_admissions", use_container_width=True, help="Eligibility criteria, cutoffs, and application process"):
+        clicked_query = "What is the eligibility criteria and admission process for 2026?"
+    st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown("<div style='margin-bottom: 14px;'></div>", unsafe_allow_html=True)
+
+clicked_query = clicked_query if "clicked_query" in locals() and clicked_query else None
 
 # =========================================================
-# Right Column: Interactive Campus Hub & Management Center
+# Campus Hub & Exploration Center (Collapsible Full-Width Hub)
 # =========================================================
-with col_hub:
+with st.expander("🏛️ **Interactive Campus Exploration Hub (Quick FAQs, Apply Online, Staff Desk, Campus Highlights & Contacts)**", expanded=False):
     tab_faqs, tab_leads, tab_admin, tab_gallery, tab_campus, tab_contacts, tab_logs = st.tabs([
         "💡 FAQs",
         "📝 Apply",
@@ -939,208 +2035,505 @@ with col_hub:
                 st.info("No queries processed yet in this session.")
 
 # =========================================================
-# Left Column: ChatGPT-Style Conversational Interface
+# Full-Width Conversational Interface (90-95% Centered Viewport)
 # =========================================================
-with col_chat:
-    msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
+msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
+st.markdown(
+    f"""
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+        <div class="card-title" style="margin:0;">
+            💬 Student Consultation Stream
+        </div>
+        <div style="font-size:0.8rem; background:#F1F5F9; color:#475569; padding:3px 10px; border-radius:9999px; font-weight:600;">
+            {msg_count} questions asked
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Render Conversation Messages (ChatGPT Style)
+last_user_query = ""
+for idx, msg in enumerate(st.session_state.messages):
+    if msg["role"] == "user":
+        last_user_query = msg["content"]
+        with st.chat_message("user", avatar="🧑‍🎓"):
+            st.markdown(f'<div class="chat-user-text">{msg["content"]}</div>', unsafe_allow_html=True)
+    else:
+        with st.chat_message("assistant", avatar="🤖"):
+            meta = msg.get("meta") or {}
+            visual = meta.get("visual") or {}
+            img_name = visual.get("image") or "campus_main.jpg"
+            img_caption = visual.get("caption") or "🏛️ VR College of Engineering Campus"
+            img_full_path = os.path.join(ASSETS_DIR, img_name)
+
+            # Diagnostics & Metadata
+            status = meta.get("status")
+            cat = meta.get("category")
+            conf = meta.get("confidence", 0.0)
+            matched_q = meta.get("matched_question")
+            is_fuzzy = meta.get("is_fuzzy", False)
+            ai_gen = meta.get("ai_generated", False)
+
+            # Writing Block Header (ChatGPT Writing Block UI)
+            heading_title, heading_icon = get_answer_heading_and_icon(cat, matched_q, msg["content"])
+            st.markdown(f"""
+            <div class="ai-wb-header">
+                <div class="ai-wb-title-group">
+                    <span class="ai-wb-icon">{heading_icon}</span>
+                    <div>
+                        <div class="ai-wb-heading">{heading_title}</div>
+                        <div class="ai-wb-subtitle">VR College of Engineering • Verified AI Advisory</div>
+                    </div>
+                </div>
+                <div class="ai-wb-badge-group">
+                    <span class="ai-wb-badge">✨ Writing Block</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            meta_html = ""
+            if ai_gen:
+                meta_html += '<span class="ai-pill">✨ Gemini AI Generated</span> '
+            if cat and cat not in ["Greeting", "Gratitude", "Farewell"]:
+                meta_html += f'<span class="category-pill">📂 Category: {cat}</span> '
+            if status == "matched":
+                meta_html += f'<span class="confidence-pill">🎯 Grounded: {int(conf * 100)}%</span> '
+                if is_fuzzy:
+                    meta_html += '<span class="fuzzy-pill">⚡ Auto-Corrected / Typo Resilient</span> '
+                if matched_q and not ai_gen:
+                    meta_html += f'<div class="matched-prompt-hint">💡 Matched FAQ: <em>"{matched_q}"</em></div>'
+            elif status == "fallback":
+                meta_html += f'<span class="fallback-pill">💡 Guided Campus Advisory</span>'
+            elif status in ["greeting", "gratitude", "farewell"]:
+                meta_html += f'<span class="confidence-pill">⚡ Instant {status.capitalize()}</span>'
+
+            # Related Campus Picture Banner (1:3 vertical-to-horizontal aesthetic ratio)
+            if os.path.exists(img_full_path):
+                try:
+                    with open(img_full_path, "rb") as f_img:
+                        img_b64 = base64.b64encode(f_img.read()).decode("utf-8")
+                    st.markdown(
+                        f'''
+                        <div style="margin-bottom: 16px; border-radius: 14px; overflow: hidden; border: 1.5px solid #BAE6FD; box-shadow: 0 4px 16px rgba(14, 116, 144, 0.08);">
+                            <img src="data:image/jpeg;base64,{img_b64}" alt="{img_caption}" style="width: 100%; max-height: 230px; object-fit: cover; display: block;" />
+                            <div style="background: rgba(240, 249, 255, 0.95); padding: 6px 14px; font-size: 12px; font-weight: 600; color: #0369A1; border-top: 1px solid #E0F2FE;">
+                                📷 {img_caption}
+                            </div>
+                        </div>
+                        ''',
+                        unsafe_allow_html=True
+                    )
+                except Exception:
+                    st.image(img_full_path, caption=img_caption, use_container_width=True)
+
+            # Full-Width Markdown Content (Tables, Headings, Lists span 100% of answer container)
+            st.markdown(msg["content"])
+            if meta_html:
+                st.markdown(meta_html, unsafe_allow_html=True)
+
+            # Interactive Action Bar: 📋 Copy Answer, 🔊 Listen, 🔄 Regenerate, 👍/👎 Feedback
+            if msg.get("content"):
+                clean_answer_text = msg["content"].replace("[DEMO DATA]", "").strip()
+                clean_text_for_js = json.dumps(clean_answer_text)
+
+                copy_html = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                <meta charset="utf-8">
+                <style>
+                * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }}
+                body {{ background: transparent; display: flex; align-items: center; height: 100%; overflow: hidden; }}
+                .btn-group {{ display: flex; align-items: center; gap: 8px; }}
+                .act-btn {{
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    background: #F0F9FF;
+                    border: 1.2px solid #BAE6FD;
+                    color: #0369A1;
+                    font-size: 11.5px;
+                    font-weight: 600;
+                    padding: 5px 12px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    outline: none;
+                    user-select: none;
+                    white-space: nowrap;
+                }}
+                .act-btn:hover {{
+                    background: #E0F2FE;
+                    border-color: #38BDF8;
+                    color: #0284C7;
+                    transform: translateY(-1px);
+                    box-shadow: 0 2px 6px rgba(14, 116, 144, 0.12);
+                }}
+                .act-btn:active {{
+                    transform: translateY(0);
+                }}
+                .copied {{
+                    background: #ECFDF5 !important;
+                    border-color: #6EE7B7 !important;
+                    color: #047857 !important;
+                }}
+                </style>
+                </head>
+                <body>
+                <div class="btn-group">
+                    <button id="copy-btn" class="act-btn" onclick="doCopy()">
+                        📋 <span>Copy Answer</span>
+                    </button>
+                    <button id="tts-btn" class="act-btn" onclick="doTTS()">
+                        🔊 <span>Listen</span>
+                    </button>
+                </div>
+                <script>
+                const answerText = {clean_text_for_js};
+
+                function doCopy() {{
+                    function success() {{
+                        const btn = document.getElementById('copy-btn');
+                        btn.classList.add('copied');
+                        btn.innerHTML = '✅ <span>Copied!</span>';
+                        setTimeout(() => {{
+                            btn.classList.remove('copied');
+                            btn.innerHTML = '📋 <span>Copy Answer</span>';
+                        }}, 2200);
+                    }}
+
+                    if (navigator.clipboard && window.isSecureContext) {{
+                        navigator.clipboard.writeText(answerText).then(success).catch(() => fallbackCopy(answerText, success));
+                    }} else {{
+                        fallbackCopy(answerText, success);
+                    }}
+                }}
+
+                function fallbackCopy(text, cb) {{
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.left = '-9999px';
+                    ta.style.top = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.focus();
+                    ta.select();
+                    try {{
+                        const ok = document.execCommand('copy');
+                        if (ok) cb();
+                    }} catch (e) {{
+                        console.error(e);
+                    }}
+                    document.body.removeChild(ta);
+                }}
+
+                function doTTS() {{
+                    try {{
+                        window.speechSynthesis.cancel();
+                        const u = new SpeechSynthesisUtterance(answerText);
+                        u.rate = 1.0;
+                        window.speechSynthesis.speak(u);
+                    }} catch(e) {{
+                        console.error(e);
+                    }}
+                }}
+                </script>
+                </body>
+                </html>
+                """
+
+                st.markdown("<div style='margin-top:14px; margin-bottom:4px;'></div>", unsafe_allow_html=True)
+                if idx == 0:
+                    col_act_left, col_act_regen = st.columns([3.8, 1.8], gap="small")
+                    with col_act_left:
+                        components.html(copy_html, height=34)
+                    with col_act_regen:
+                        if st.button("🔄 Regenerate", key=f"regen_{idx}", help="Refresh initial welcome guidance", use_container_width=True):
+                            st.session_state.messages = get_initial_messages()
+                            st.rerun()
+                else:
+                    prev_user_q = ""
+                    target_user_idx = None
+                    for p_i in range(idx - 1, -1, -1):
+                        if st.session_state.messages[p_i]["role"] == "user":
+                            prev_user_q = st.session_state.messages[p_i]["content"]
+                            target_user_idx = p_i
+                            break
+
+                    col_act_left, col_act_regen, col_act_up, col_act_down = st.columns([3.6, 2.0, 0.7, 0.7], gap="small")
+                    with col_act_left:
+                        components.html(copy_html, height=34)
+                    with col_act_regen:
+                        if st.button("🔄 Regenerate", key=f"regen_{idx}", help="Regenerate this answer", use_container_width=True):
+                            if target_user_idx is not None and prev_user_q:
+                                st.session_state.messages = st.session_state.messages[:target_user_idx]
+                                st.session_state["regenerate_query"] = prev_user_q
+                                current_conv_id = st.session_state.get("current_conversation_id")
+                                if current_conv_id:
+                                    try:
+                                        conn = get_connection()
+                                        cur = conn.cursor()
+                                        cur.execute(
+                                            "DELETE FROM messages WHERE conversation_id = ? AND id >= (SELECT id FROM messages WHERE conversation_id = ? AND role = 'user' AND content = ? ORDER BY id DESC LIMIT 1);",
+                                            (current_conv_id, current_conv_id, prev_user_q)
+                                        )
+                                        conn.commit()
+                                        conn.close()
+                                    except Exception:
+                                        pass
+                                st.rerun()
+                            else:
+                                st.rerun()
+                    with col_act_up:
+                        if st.button("👍", key=f"fb_up_{idx}", help="Helpful response", use_container_width=True):
+                            log_feedback(query=last_user_query, answer=msg["content"], rating="positive")
+                            st.toast("Thank you for your feedback! 👍")
+                    with col_act_down:
+                        if st.button("👎", key=f"fb_down_{idx}", help="Needs improvement", use_container_width=True):
+                            log_feedback(query=last_user_query, answer=msg["content"], rating="negative")
+                            st.toast("Feedback noted! Our counseling desk will review this. 👎")
+
+            # Contextual Interactive Suggestion Chips (Prompt Requirement: Interactive quick-response cards)
+            if idx == len(st.session_state.messages) - 1:
+                cat_id_hint = meta.get("category_id") or meta.get("category")
+                context_chips = get_contextual_chips(last_user_query, cat_id_hint)
+                st.markdown("<div style='margin-top:10px; margin-bottom:4px; font-size:0.78rem; color:#64748B; font-weight:600;'>💡 Interactive Suggestions (Click to Ask):</div>", unsafe_allow_html=True)
+                chip_cols = st.columns(len(context_chips))
+                for c_i, (chip_label, chip_query) in enumerate(context_chips):
+                    with chip_cols[c_i]:
+                        if st.button(chip_label, key=f"chip_dyn_{idx}_{c_i}", use_container_width=True):
+                            clicked_query = chip_query
+
+# Suggested Starter Prompts (Show when chat has few messages)
+if len(st.session_state.messages) <= 2:
+    st.markdown("<div style='margin-top: 10px; margin-bottom: 6px; font-size: 0.84rem; color: #64748B; font-weight: 600;'>💡 Try asking a question or follow-up:</div>", unsafe_allow_html=True)
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        if st.button("🎓 What undergraduate courses are offered?", key="chip_c1", use_container_width=True):
+            clicked_query = "What undergraduate courses are offered?"
+        if st.button("💰 How much is the annual fee for B.Tech?", key="chip_c2", use_container_width=True):
+            clicked_query = "How much is the annual tuition fee for B.Tech?"
+    with col_s2:
+        if st.button("🏢 Are hostel facilities available on campus?", key="chip_c3", use_container_width=True):
+            clicked_query = "Are hostel facilities available for boys and girls?"
+        if st.button("💼 What was the highest placement package?", key="chip_c4", use_container_width=True):
+            clicked_query = "What was the highest and average salary package in recent placements?"
+
+# Campus Highlights Expander with Interactive Facility Cards
+with st.expander("📸 **Virtual Campus Tour & 15 Facility Showcases (Click to Explore)**", expanded=(len(st.session_state.messages) <= 2)):
     st.markdown(
-        f"""
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-            <div class="card-title" style="margin:0;">
-                💬 Student Consultation Stream
-            </div>
-            <div style="font-size:0.8rem; background:#F1F5F9; color:#475569; padding:3px 10px; border-radius:9999px; font-weight:600;">
-                {msg_count} questions asked
-            </div>
+        """
+        <div style="font-size:0.83rem; color:#475569; margin-bottom:10px;">
+            Browse our 15 key campus facilities. Click any card button to trigger an immediate conversational enquiry:
         </div>
         """,
         unsafe_allow_html=True
     )
+    featured_cards = get_all_interactive_cards()
+    # Display in 3 responsive columns
+    c_p1, c_p2, c_p3 = st.columns(3)
+    cols_list = [c_p1, c_p2, c_p3]
+    for f_i, card_item in enumerate(featured_cards):
+        target_col = cols_list[f_i % 3]
+        c_img_path = os.path.join(ASSETS_DIR, card_item["image"])
+        with target_col:
+            with st.container():
+                st.markdown(
+                    f"""
+                    <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-radius:12px; padding:8px 10px; margin-bottom:4px;">
+                        <div style="font-size:0.86rem; font-weight:700; color:#1E3A8A;">{card_item['title']}</div>
+                        <div style="font-size:0.75rem; color:#475569; line-height:1.35; margin-top:2px;">{card_item['description'][:85]}...</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                if os.path.exists(c_img_path):
+                    st.image(c_img_path, caption=card_item["title"], use_container_width=True)
+                if st.button(f"👉 Enquire: {card_item['title'][:14]}..", key=f"tour_btn_{card_item['id']}_{f_i}", use_container_width=True):
+                    clicked_query = card_item["quick_prompt"]
+                st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
 
-    # Render Conversation Messages (ChatGPT Style)
-    last_user_query = ""
-    for idx, msg in enumerate(st.session_state.messages):
-        if msg["role"] == "user":
-            last_user_query = msg["content"]
-            with st.chat_message("user", avatar="🧑‍🎓"):
-                st.markdown(f"**{msg['content']}**")
-        else:
-            with st.chat_message("assistant", avatar="🤖"):
-                meta = msg.get("meta") or {}
-                visual = meta.get("visual") or {}
-                img_name = visual.get("image") or "campus_main.jpg"
-                img_caption = visual.get("caption") or "🏛️ VR College of Engineering Campus"
-                img_full_path = os.path.join(ASSETS_DIR, img_name)
-
-                # Diagnostics & Metadata
-                status = meta.get("status")
-                cat = meta.get("category")
-                conf = meta.get("confidence", 0.0)
-                matched_q = meta.get("matched_question")
-                is_fuzzy = meta.get("is_fuzzy", False)
-                ai_gen = meta.get("ai_generated", False)
-
-                meta_html = ""
-                if ai_gen:
-                    meta_html += '<span class="ai-pill">✨ Gemini AI Generated</span> '
-                if cat and cat not in ["Greeting", "Gratitude", "Farewell"]:
-                    meta_html += f'<span class="category-pill">📂 Category: {cat}</span> '
-                if status == "matched":
-                    meta_html += f'<span class="confidence-pill">🎯 Grounded: {int(conf * 100)}%</span> '
-                    if is_fuzzy:
-                        meta_html += '<span class="fuzzy-pill">⚡ Auto-Corrected / Typo Resilient</span> '
-                    if matched_q and not ai_gen:
-                        meta_html += f'<div class="matched-prompt-hint">💡 Matched FAQ: <em>"{matched_q}"</em></div>'
-                elif status == "fallback":
-                    meta_html += f'<span class="fallback-pill">💡 Guided Campus Advisory</span>'
-                elif status in ["greeting", "gratitude", "farewell"]:
-                    meta_html += f'<span class="confidence-pill">⚡ Instant {status.capitalize()}</span>'
-
-                # 1:3 Ratio Layout: Related Campus Picture (1 Part) + Friendly Response Text (3 Parts)
-                if os.path.exists(img_full_path):
-                    col_resp_img, col_resp_text = st.columns([1, 3], gap="medium")
-                    with col_resp_img:
-                        st.image(img_full_path, caption=img_caption, use_container_width=True)
-                    with col_resp_text:
-                        st.markdown(msg["content"])
-                        if meta_html:
-                            st.markdown(meta_html, unsafe_allow_html=True)
-                else:
-                    st.markdown(msg["content"])
-                    if meta_html:
-                        st.markdown(meta_html, unsafe_allow_html=True)
-
-                # Action Bar: Audio Read Aloud & Student Feedback Rating
-                if idx > 0 and msg["content"]:
-                    clean_text_for_js = json.dumps(msg["content"].replace("[DEMO DATA]", "").strip())
-
-                    c_act1, c_act2, c_act3, c_act4 = st.columns([1.8, 1, 1, 5])
-                    with c_act1:
-                        # Native Browser Text-to-Speech
-                        components.html(f"""
-                        <button onclick="window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance({clean_text_for_js}); u.rate=1.0; window.speechSynthesis.speak(u);"
-                                style="background:#EFF6FF; border:1px solid #BFDBFE; color:#1D4ED8; font-size:11px; font-weight:600; padding:4px 8px; border-radius:6px; cursor:pointer;">
-                            🔊 Listen
-                        </button>
-                        """, height=30)
-                    with c_act2:
-                        if st.button("👍", key=f"fb_up_{idx}", help="Helpful response"):
-                            log_feedback(query=last_user_query, answer=msg["content"], rating="positive")
-                            st.toast("Thank you for your feedback! 👍")
-                    with c_act3:
-                        if st.button("👎", key=f"fb_down_{idx}", help="Needs improvement"):
-                            log_feedback(query=last_user_query, answer=msg["content"], rating="negative")
-                            st.toast("Feedback noted! Our counseling desk will review this. 👎")
-
-                # Contextual Interactive Suggestion Chips (Prompt Requirement: Interactive quick-response cards)
-                if idx == len(st.session_state.messages) - 1:
-                    cat_id_hint = meta.get("category_id") or meta.get("category")
-                    context_chips = get_contextual_chips(last_user_query, cat_id_hint)
-                    st.markdown("<div style='margin-top:10px; margin-bottom:4px; font-size:0.78rem; color:#64748B; font-weight:600;'>💡 Interactive Suggestions (Click to Ask):</div>", unsafe_allow_html=True)
-                    chip_cols = st.columns(len(context_chips))
-                    for c_i, (chip_label, chip_query) in enumerate(context_chips):
-                        with chip_cols[c_i]:
-                            if st.button(chip_label, key=f"chip_dyn_{idx}_{c_i}", use_container_width=True):
-                                clicked_query = chip_query
-
-    # Suggested Starter Prompts (Show when chat has few messages)
-    if len(st.session_state.messages) <= 2:
-        st.markdown("<div style='margin-top: 10px; margin-bottom: 6px; font-size: 0.84rem; color: #64748B; font-weight: 600;'>💡 Try asking a question or follow-up:</div>", unsafe_allow_html=True)
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            if st.button("🎓 What undergraduate courses are offered?", key="chip_c1", use_container_width=True):
-                clicked_query = "What undergraduate courses are offered?"
-            if st.button("💰 How much is the annual fee for B.Tech?", key="chip_c2", use_container_width=True):
-                clicked_query = "How much is the annual tuition fee for B.Tech?"
-        with col_s2:
-            if st.button("🏢 Are hostel facilities available on campus?", key="chip_c3", use_container_width=True):
-                clicked_query = "Are hostel facilities available for boys and girls?"
-            if st.button("💼 What was the highest placement package?", key="chip_c4", use_container_width=True):
-                clicked_query = "What was the highest and average salary package in recent placements?"
-
-    # Campus Highlights Expander with Interactive Facility Cards
-    with st.expander("📸 **Virtual Campus Tour & 15 Facility Showcases (Click to Explore)**", expanded=(len(st.session_state.messages) <= 2)):
-        st.markdown(
-            """
-            <div style="font-size:0.83rem; color:#475569; margin-bottom:10px;">
-                Browse our 15 key campus facilities. Click any card button to trigger an immediate conversational enquiry:
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        featured_cards = get_all_interactive_cards()
-        # Display in 3 responsive columns
-        c_p1, c_p2, c_p3 = st.columns(3)
-        cols_list = [c_p1, c_p2, c_p3]
-        for f_i, card_item in enumerate(featured_cards):
-            target_col = cols_list[f_i % 3]
-            c_img_path = os.path.join(ASSETS_DIR, card_item["image"])
-            with target_col:
-                with st.container():
-                    st.markdown(
-                        f"""
-                        <div style="background:#FFFFFF; border:1px solid #E2E8F0; border-radius:12px; padding:8px 10px; margin-bottom:4px;">
-                            <div style="font-size:0.86rem; font-weight:700; color:#1E3A8A;">{card_item['title']}</div>
-                            <div style="font-size:0.75rem; color:#475569; line-height:1.35; margin-top:2px;">{card_item['description'][:85]}...</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    if os.path.exists(c_img_path):
-                        st.image(c_img_path, caption=card_item["title"], use_container_width=True)
-                    if st.button(f"👉 Enquire: {card_item['title'][:14]}..", key=f"tour_btn_{card_item['id']}_{f_i}", use_container_width=True):
-                        clicked_query = card_item["quick_prompt"]
-                    st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
-
-    # Voice Assistant Speech-to-Text Bar
-    components.html("""
-    <script>
-    function startVoiceInput() {
-        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert("Speech recognition is supported in Google Chrome, Edge, and modern browsers.");
-            return;
-        }
-        var recognition = new SpeechRecognition();
-        recognition.lang = 'en-IN';
-        recognition.interimResults = false;
-        var statusEl = document.getElementById('voice-status');
-        statusEl.innerText = "🎙️ Listening... Speak your question now!";
-        recognition.start();
-
-        recognition.onresult = function(event) {
-            var transcript = event.results[0][0].transcript;
-            statusEl.innerText = "✅ Transcribed: '" + transcript + "' (Please paste into chat box below)";
-            navigator.clipboard.writeText(transcript);
-        };
-        recognition.onerror = function(event) {
-            statusEl.innerText = "❌ Mic: " + event.error + ". Click again to retry.";
-        };
+# ---------------------------------------------------------
+# Premium AI & Voice Control Dock (Companion to Chat Input)
+# ---------------------------------------------------------
+components.html("""
+<script>
+function startVoiceInput() {
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Speech recognition is supported in Google Chrome, Microsoft Edge, and modern Web Speech browsers.");
+        return;
     }
-    </script>
-    <div style="display:flex; align-items:center; gap:10px; font-family:'Plus Jakarta Sans', sans-serif; background:#F8FAFC; padding:6px 12px; border-radius:10px; border:1px solid #E2E8F0; margin-bottom:4px;">
-        <button onclick="startVoiceInput()" style="background:#2563EB; color:#FFFFFF; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
-            🎙️ Speak Enquiry
-        </button>
-        <span id="voice-status" style="font-size:11.5px; color:#64748B;">Click to speak into microphone (Auto-copies transcribed text to clipboard)</span>
-    </div>
-    """, height=44)
+    var recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.interimResults = false;
+    var statusEl = document.getElementById('voice-status');
+    var micBtn = document.getElementById('mic-btn');
+    var pulseDot = document.getElementById('pulse-recording-dot');
+    
+    statusEl.innerHTML = "🎙️ <strong style='color:#2563EB;'>Listening...</strong> Speak your question clearly into your microphone.";
+    if (micBtn) {
+        micBtn.style.background = "linear-gradient(135deg, #DC2626 0%, #EF4444 100%)";
+        micBtn.style.boxShadow = "0 0 16px rgba(239, 68, 68, 0.6)";
+    }
+    if (pulseDot) pulseDot.style.display = "inline-block";
+    
+    recognition.start();
 
-    # Chat Input Box
-    user_input = st.chat_input("Ask VRBot anything (e.g. 'What courses do you offer?', 'Explain the first one', 'hostal rules', 'B.Tech fees')...")
+    recognition.onresult = function(event) {
+        var transcript = event.results[0][0].transcript;
+        statusEl.innerHTML = "✅ Transcribed: <span style='color:#1D4ED8; font-weight:600;'>\\"" + transcript + "\\"</span> <span style='color:#64748B;'>(Copied to clipboard - paste into chat box)</span>";
+        navigator.clipboard.writeText(transcript);
+        resetMicBtn();
+        
+        try {
+            var parentDoc = window.parent.document;
+            var chatTextarea = parentDoc.querySelector('[data-testid="stChatInput"] textarea');
+            if (chatTextarea) {
+                chatTextarea.value = transcript;
+                chatTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+                chatTextarea.focus();
+            }
+        } catch(e) {}
+    };
+    recognition.onerror = function(event) {
+        statusEl.innerHTML = "❌ <span style='color:#DC2626;'>Mic: " + event.error + ". Click to retry.</span>";
+        resetMicBtn();
+    };
+    recognition.onend = function() {
+        resetMicBtn();
+    };
+
+    function resetMicBtn() {
+        if (micBtn) {
+            micBtn.style.background = "linear-gradient(135deg, #2563EB 0%, #06B6D4 100%)";
+            micBtn.style.boxShadow = "0 2px 10px rgba(37, 99, 235, 0.35)";
+        }
+        if (pulseDot) pulseDot.style.display = "none";
+    }
+}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+.dock-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, rgba(248, 250, 252, 0.95) 0%, rgba(239, 246, 255, 0.95) 100%);
+    border: 1.5px solid #BFDBFE;
+    border-radius: 14px;
+    padding: 6px 12px;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.08);
+    gap: 10px;
+    margin-bottom: 2px;
+}
+.left-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #1E3A8A;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+}
+.ai-sparkle {
+    font-size: 13px;
+    filter: drop-shadow(0 0 5px rgba(6, 182, 212, 0.8));
+}
+.live-dot {
+    width: 7px;
+    height: 7px;
+    background: #10B981;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 6px #10B981;
+    animation: pulseLive 2s infinite;
+}
+@keyframes pulseLive {
+    0% { transform: scale(0.9); opacity: 0.7; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.7; }
+}
+.mic-btn {
+    background: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
+    color: #FFFFFF;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 11.5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.35);
+    white-space: nowrap;
+}
+.mic-btn:hover {
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 0 14px rgba(37, 99, 235, 0.5), 0 0 22px rgba(6, 182, 212, 0.35);
+}
+.status-text {
+    font-size: 11px;
+    color: #64748B;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#pulse-recording-dot {
+    width: 6px;
+    height: 6px;
+    background: #FFFFFF;
+    border-radius: 50%;
+    display: none;
+    animation: pulseLive 1s infinite;
+}
+</style>
+<div class="dock-container">
+    <div class="left-badge">
+        <span class="ai-sparkle">✨</span>
+        <span>VRBot AI Active</span>
+        <span class="live-dot"></span>
+    </div>
+    <div class="status-text" id="voice-status">
+        Speak or type below • Ask courses, fees, hostels, cutoffs
+    </div>
+    <button id="mic-btn" class="mic-btn" onclick="startVoiceInput()">
+        🎙️ <span>Voice Enquiry</span>
+        <span id="pulse-recording-dot"></span>
+    </button>
+</div>
+""", height=44)
+
+# Chat Input Box with Premium Glowing Styling & Updated Placeholder
+user_input = st.chat_input("Ask VRBot anything... Your college assistant is here to help!")
 
 # ---------------------------------------------------------
 # Handle Query Processing with Multi-Turn Context & Streaming
 # ---------------------------------------------------------
 active_query = clicked_query if clicked_query else user_input
+if not active_query and "regenerate_query" in st.session_state and st.session_state["regenerate_query"]:
+    active_query = st.session_state.pop("regenerate_query")
 
 if active_query and chatbot_ready:
-    # 1. Append user question to history
+    current_conv_id = st.session_state.get("current_conversation_id")
+    if not current_conv_id:
+        current_conv_id = uuid.uuid4().hex[:10]
+        st.session_state.current_conversation_id = current_conv_id
+
+    # 1. Append user question to history and SQLite
     st.session_state.messages.append({
         "role": "user",
         "content": active_query,
         "meta": None
     })
+    save_message(current_conv_id, "user", active_query, None)
+    add_recent_search(active_query)
 
     # 2. Get intelligent, context-aware response from CollegeChatbot
     with st.spinner("VRBot is thinking..."):
@@ -1154,12 +2547,13 @@ if active_query and chatbot_ready:
     # 3. Prefer friendly, structured conversational response
     display_content = res.get("friendly_answer") or res.get("answer")
 
-    # 4. Append bot response to history
+    # 4. Append bot response to history and SQLite
     st.session_state.messages.append({
         "role": "assistant",
         "content": display_content,
         "meta": res
     })
+    save_message(current_conv_id, "assistant", display_content, res)
 
     # 5. Trigger UI update
     st.rerun()

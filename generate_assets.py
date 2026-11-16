@@ -334,23 +334,47 @@ def download_or_generate_assets():
 def generate_logo():
     logo_path = os.path.join(ASSETS_DIR, "logo.png")
 
-    width, height = 400, 140
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+    size = (512, 512)
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
 
-    draw.rounded_rectangle([(15, 15), (115, 115)], radius=18, fill="#1E40AF", outline="#1D4ED8", width=2)
-    draw.polygon([(65, 35), (100, 52), (65, 68), (30, 52)], fill="#FFFFFF")
-    draw.polygon([(45, 62), (65, 75), (85, 62), (85, 70), (65, 83), (45, 70)], fill="#FCD34D")
-    draw.line([(95, 54), (98, 78)], fill="#FCD34D", width=2)
-    draw.ellipse([(96, 78), (100, 84)], fill="#FCD34D")
+    # Outer rounded card
+    draw.rounded_rectangle([(16, 16), (496, 496)], radius=96, fill="#1E3A8A", outline="#3B82F6", width=6)
+    draw.rounded_rectangle([(28, 28), (484, 484)], radius=84, outline="#FCD34D", width=4)
 
-    draw.text((135, 28), "VR COLLEGE", fill="#1E40AF")
-    draw.text((135, 52), "OF ENGINEERING", fill="#0F172A")
-    draw.text((135, 78), "Approved by AICTE | Estd. 2005", fill="#64748B")
-    draw.line([(135, 102), (370, 102)], fill="#3B82F6", width=2)
+    # Radial / subtle inner glow circle
+    draw.ellipse([(76, 76), (436, 436)], fill="#1E40AF", outline="#60A5FA", width=3)
 
-    image.save(logo_path, "PNG")
-    print(f"Generated logo at {logo_path}")
+    # Academic Graduation Cap
+    cap_pts = [(256, 120), (410, 195), (256, 270), (102, 195)]
+    draw.polygon(cap_pts, fill="#FFFFFF")
+
+    # Cap Under-Skullcap
+    skull_pts = [(160, 240), (256, 290), (352, 240), (352, 280), (256, 335), (160, 280)]
+    draw.polygon(skull_pts, fill="#F8FAFC", outline="#CBD5E1", width=2)
+
+    # Gold Band on Skullcap
+    gold_band = [(160, 275), (256, 325), (352, 275), (352, 283), (256, 333), (160, 283)]
+    draw.polygon(gold_band, fill="#F59E0B")
+
+    # Cap Tassel Button & Cord
+    draw.ellipse([(246, 185), (266, 205)], fill="#F59E0B")
+    draw.line([(256, 195), (390, 240), (396, 320)], fill="#FCD34D", width=8)
+    draw.polygon([(386, 315), (406, 315), (412, 355), (380, 355)], fill="#F59E0B")
+
+    # Open Knowledge Book below cap
+    book_pts_left = [(256, 430), (160, 395), (160, 355), (256, 390)]
+    draw.polygon(book_pts_left, fill="#FFFFFF")
+    book_pts_right = [(256, 430), (352, 395), (352, 355), (256, 390)]
+    draw.polygon(book_pts_right, fill="#EFF6FF")
+    draw.line([(256, 390), (256, 435)], fill="#F59E0B", width=5)
+
+    # 3 Academic Stars above book
+    for cx, cy in [(210, 360), (256, 345), (302, 360)]:
+        draw.polygon([(cx, cy-12), (cx+4, cy-4), (cx+12, cy-4), (cx+6, cy+3), (cx+9, cy+11), (cx, cy+6), (cx-9, cy+11), (cx-6, cy+3), (cx-12, cy-4), (cx-4, cy-4)], fill="#FCD34D")
+
+    img.save(logo_path, "PNG")
+    print(f"Generated high-res emblem logo at {logo_path}")
 
 
 if __name__ == "__main__":

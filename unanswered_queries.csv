@@ -1,5 +1,5 @@
 timestamp,query,attempted_score,suggested_category,status
-2026-11-14 12:32:06,How do I bake a chocolate cake with strawberry frosting?,0.0,General enquiries,Unresolved
+2026-11-16 18:15:13,How do I bake a chocolate cake with strawberry frosting?,0.0,General enquiries,Unresolved
 2026-11-13 11:19:30,What is the policy for autonomous drone club 2026?,0.12,General enquiries,Resolved
 2026-11-13 11:23:15,What is the policy for autonomous drone club ca52da41-e920-4b62-a532-16cdfd65bf17?,0.12,General enquiries,Resolved
 2026-11-13 11:24:05,What is the policy for autonomous drone club afc61d50-215c-48bb-88df-3eced7f600eb?,0.12,General enquiries,Resolved
@@ -14,7 +14,7 @@ timestamp,query,attempted_score,suggested_category,status
 2026-11-13 12:17:47,What is the policy for autonomous drone club fe294414-3f85-484c-b396-58da852e4141?,0.12,General enquiries,Resolved
 2026-11-13 12:18:54,What is the policy for autonomous drone club 1f00019f-9e53-4333-b8b0-15a1c62996ea?,0.12,General enquiries,Resolved
 2026-11-13 12:20:13,What is the policy for autonomous drone club 6a638737-ec08-4ca3-8496-55f351b61286?,0.12,General enquiries,Resolved
-2026-11-13 12:23:56,i want the list,0.0,All Categories,Unresolved
+2026-11-16 18:09:05,i want the list,0.0,All Categories,Unresolved
 2026-11-13 13:13:20,more details,0.0,All Categories,Unresolved
 2026-11-13 17:59:22,What is the policy for autonomous drone club bd5c9c15-39cf-4b97-90aa-e53a7fa5a7bc?,0.12,General enquiries,Resolved
 2026-11-14 08:25:07,What is the policy for autonomous drone club 0ed4b8b3-b0f3-44c2-961e-8bd3ae8a8f3d?,0.12,General enquiries,Resolved
@@ -33,3 +33,25 @@ timestamp,query,attempted_score,suggested_category,status
 2026-11-14 12:30:09,What is the policy for autonomous drone club b91249f9-fce9-4e1f-a144-7b72cf7b2e05?,0.12,General enquiries,Resolved
 2026-11-14 12:32:07,What is the policy for autonomous drone club d218bd09-4ced-403b-8723-bdc20a112844?,0.12,General enquiries,Resolved
 2026-11-14 12:34:52,who was the founder,0.0,All Categories,Unresolved
+2026-11-16 13:08:17,What is the policy for autonomous drone club 9d7baf2b-3221-4bad-86f8-f00660eabbe0?,0.12,General enquiries,Resolved
+2026-11-16 13:41:46,What is the policy for autonomous drone club ce2c37b5-fdcf-462a-8fc6-903a27cd0603?,0.12,General enquiries,Resolved
+2026-11-16 13:41:55,What is the policy for autonomous drone club c43c462f-9e50-4ad0-8e54-6d84b5e40714?,0.12,General enquiries,Resolved
+2026-11-16 13:44:18,What is the policy for autonomous drone club e42b8378-1f22-40f1-b0a7-48584e33a258?,0.12,General enquiries,Resolved
+2026-11-16 13:44:53,What is the policy for autonomous drone club 1dcff9fb-f122-4757-94bb-b0eec0b94c38?,0.12,General enquiries,Resolved
+2026-11-16 14:43:20,What is the policy for autonomous drone club 965448df-1c71-47b5-a78f-8256e88ab491?,0.12,General enquiries,Resolved
+2026-11-16 14:44:46,What is the policy for autonomous drone club 31fed15e-5107-4480-a99e-7559404483cb?,0.12,General enquiries,Resolved
+2026-11-16 14:54:25,What is the policy for autonomous drone club fcc5174e-5d35-42cf-bef2-f997ee9a6c3c?,0.12,General enquiries,Resolved
+2026-11-16 14:55:20,What is the policy for autonomous drone club a3b2662e-1d11-4295-bda8-0aa353a342f8?,0.12,General enquiries,Resolved
+2026-11-16 15:11:44,What is the policy for autonomous drone club bb24a1cf-1cfe-42f0-b93b-7bbfa4f39eac?,0.12,General enquiries,Resolved
+2026-11-16 15:14:03,What is the policy for autonomous drone club b0adab47-3dea-43f2-b544-6246ec3287df?,0.12,General enquiries,Resolved
+2026-11-16 15:27:59,What is the policy for autonomous drone club b5f11332-e546-42af-bf64-191dfded153d?,0.12,General enquiries,Resolved
+2026-11-16 15:29:40,What is the policy for autonomous drone club 96056593-a8e7-420b-a789-d1e9544cc509?,0.12,General enquiries,Resolved
+2026-11-16 15:49:11,What is the policy for autonomous drone club 52cc58a0-8aaa-45e2-a009-c7df21ad9ffe?,0.12,General enquiries,Resolved
+2026-11-16 15:50:57,What is the policy for autonomous drone club a1146bea-67ee-4120-b588-5af57dd1709c?,0.12,General enquiries,Resolved
+2026-11-16 15:54:30,What is the policy for autonomous drone club 0f725fb3-30f6-44b9-9b4f-98dec2c47c07?,0.12,General enquiries,Resolved
+2026-11-16 16:07:09,What is the policy for autonomous drone club f0c09543-34a2-47fd-850b-b642d03f225d?,0.12,General enquiries,Resolved
+2026-11-16 16:38:31,What is the policy for autonomous drone club 62f15ea7-8a43-493a-a623-b7776c46f8db?,0.12,General enquiries,Resolved
+2026-11-16 16:39:28,What is the policy for autonomous drone club ec4c98ac-9b5c-4269-b091-4220e2af9d35?,0.12,General enquiries,Resolved
+2026-11-16 18:08:49,explain further,0.0,General enquiries,Unresolved
+2026-11-16 18:09:05,give full details,0.0,General enquiries,Unresolved
+2026-11-16 18:15:14,What is the policy for autonomous drone club de08e1be-0fd0-4c0d-ac12-87eac4ca3c51?,0.12,General enquiries,Resolved

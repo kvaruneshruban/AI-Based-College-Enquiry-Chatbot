@@ -1,6 +1,8 @@
 """
 Generates an attractive visual mockup/screenshot of the running Streamlit UI
-and saves it to assets/ui_preview.png for documentation and presentation slides.
+with the Orély University campus scenery, turquoise/teal aesthetic, VRBot mascot,
+ChatGPT sidebar, Top Nav with Language Translator & User Profile, and Quick Access cards.
+Saves it to assets/ui_preview.png for documentation and presentation slides.
 """
 
 import os
@@ -8,131 +10,205 @@ from PIL import Image, ImageDraw, ImageFont
 
 def generate_ui_preview():
     width, height = 1200, 780
-    img = Image.new("RGBA", (width, height), "#F8FAFC")
+    img = Image.new("RGBA", (width, height), "#083344")
     draw = ImageDraw.Draw(img)
 
-    # 1. Sidebar background
-    draw.rectangle([(0, 0), (320, height)], fill="#FFFFFF", outline="#E2E8F0", width=1)
+    # 1. Illustrated Campus Sky & Gradient
+    for y in range(height):
+        ratio = y / height
+        # Turquoise & Teal Gradient
+        r = int(8 + (14 - 8) * ratio + 10 * (1 - ratio))
+        g = int(51 + (116 - 51) * ratio + 30 * ratio)
+        b = int(68 + (144 - 68) * ratio + 60 * ratio)
+        draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
 
-    # Sidebar Header / Logo
-    draw.rounded_rectangle([(30, 30), (290, 110)], radius=10, fill="#1E40AF")
-    draw.text((50, 48), "🎓 VR COLLEGE", fill="#FFFFFF")
-    draw.text((50, 72), "OF ENGINEERING - AI DESK", fill="#93C5FD")
+    # Illustrated Clouds
+    draw.ellipse([(600, 40), (800, 100)], fill=(255, 255, 255, 120))
+    draw.ellipse([(700, 30), (950, 95)], fill=(255, 255, 255, 140))
+    draw.ellipse([(850, 45), (1050, 105)], fill=(255, 255, 255, 110))
 
-    # Sidebar Controls
-    draw.text((30, 135), "ENQUIRY CONTROLS", fill="#1E40AF")
-    draw.rectangle([(30, 155), (290, 160)], fill="#3B82F6")
+    # Illustrated Distant Campus Skyline
+    draw.rectangle([(650, 180), (710, 320)], fill=(8, 145, 178, 90))
+    draw.polygon([(645, 180), (680, 130), (715, 180)], fill=(8, 145, 178, 120))
+    draw.rectangle([(730, 210), (840, 320)], fill=(8, 145, 178, 80))
+    draw.rectangle([(860, 190), (980, 320)], fill=(8, 145, 178, 70))
 
-    draw.text((30, 180), "Filter by Category:", fill="#475569")
-    draw.rounded_rectangle([(30, 205), (290, 245)], radius=6, fill="#F1F5F9", outline="#CBD5E1", width=1)
-    draw.text((45, 218), "📂 All Categories  ▼", fill="#0F172A")
+    # Rolling Green Campus Lawns (Orély Style)
+    draw.ellipse([(300, 480), (1400, 950)], fill=(5, 150, 105, 220))
+    draw.ellipse([(200, 560), (1300, 1050)], fill=(16, 185, 129, 230))
+    draw.ellipse([(400, 620), (1500, 1150)], fill=(52, 211, 153, 240))
 
-    draw.text((30, 265), "Match Threshold: 0.25", fill="#475569")
-    draw.line([(30, 295), (290, 295)], fill="#CBD5E1", width=4)
-    draw.line([(30, 295), (100, 295)], fill="#2563EB", width=4)
-    draw.ellipse([(95, 290), (105, 300)], fill="#1E40AF")
+    # 2. Sidebar background (Clean White & Light Teal with Subtle Shadow)
+    draw.rectangle([(0, 0), (310, height)], fill="#F8FAFC", outline="#CCFBF1", width=2)
 
-    # Knowledge Base Stats Cards
-    draw.text((30, 330), "KNOWLEDGE BASE STATS", fill="#1E40AF")
-    draw.rectangle([(30, 350), (290, 355)], fill="#3B82F6")
+    # Sidebar Header / Logo Card
+    draw.rounded_rectangle([(16, 16), (294, 98)], radius=12, fill="#FFFFFF", outline="#5EEAD4", width=2)
+    draw.rounded_rectangle([(24, 24), (82, 90)], radius=10, fill="#0F766E")
+    draw.text((38, 45), "🎓", fill="#FFFFFF")
+    draw.text((94, 28), "VR COLLEGE", fill="#0F766E")
+    draw.text((94, 46), "OF ENGINEERING", fill="#0F766E")
+    draw.rounded_rectangle([(94, 66), (180, 84)], radius=4, fill="#F0FDFA", outline="#99F6E4", width=1)
+    draw.text((100, 69), "AICTE Approved", fill="#0D9488")
+    draw.rounded_rectangle([(185, 66), (250, 84)], radius=4, fill="#FEF3C7", outline="#FDE68A", width=1)
+    draw.text((192, 69), "NAAC 'A+'", fill="#92400E")
 
-    # Stat Card 1
-    draw.rounded_rectangle([(30, 375), (150, 445)], radius=8, fill="#EFF6FF", outline="#BFDBFE", width=1)
-    draw.text((42, 385), "Total FAQs", fill="#1E40AF")
-    draw.text((42, 410), "42", fill="#1E3A8A")
+    # ➕ New Chat Button (ChatGPT-Style Teal Gradient)
+    draw.rounded_rectangle([(16, 112), (294, 150)], radius=8, fill="#0D9488")
+    draw.text((95, 122), "➕ New Chat", fill="#FFFFFF")
 
-    # Stat Card 2
-    draw.rounded_rectangle([(170, 375), (290, 445)], radius=8, fill="#EFF6FF", outline="#BFDBFE", width=1)
-    draw.text((182, 385), "Categories", fill="#1E40AF")
-    draw.text((182, 410), "10", fill="#1E3A8A")
+    # 🔍 Search Conversations Input
+    draw.rounded_rectangle([(16, 160), (294, 192)], radius=8, fill="#FFFFFF", outline="#CCFBF1", width=1)
+    draw.text((30, 169), "🔍 Search conversations...", fill="#64748B")
 
-    # Clear Chat Button
-    draw.rounded_rectangle([(30, 480), (290, 520)], radius=8, fill="#FEE2E2", outline="#FCA5A5", width=1)
-    draw.text((85, 493), "🗑️ Clear Chat History", fill="#991B1B")
-
-    # Architecture Tag
-    draw.rounded_rectangle([(30, 560), (290, 740)], radius=8, fill="#F8FAFC", outline="#E2E8F0", width=1)
-    draw.text((45, 575), "SYSTEM DETAILS", fill="#64748B")
-    draw.text((45, 605), "• Engine: TF-IDF + Cosine", fill="#334155")
-    draw.text((45, 630), "• Vectorizer: Scikit-learn", fill="#334155")
-    draw.text((45, 655), "• Data: college_faq.csv", fill="#334155")
-    draw.text((45, 680), "• Status: Online (Demo Mode)", fill="#059669")
-    draw.text((45, 705), "• Port: http://localhost:8501", fill="#64748B")
-
-    # 2. Main Page Header Banner
-    draw.rounded_rectangle([(350, 25), (1170, 115)], radius=12, fill="#1E40AF")
-    draw.text((375, 40), "🎓 AI-Based College Enquiry Chatbot", fill="#FFFFFF")
-    # Demo badge
-    draw.rounded_rectangle([(870, 45), (990, 72)], radius=14, fill="#FEF3C7", outline="#FCD34D", width=1)
-    draw.text((885, 50), "DEMO DATA", fill="#92400E")
-    draw.text((375, 78), "Ask questions in natural language regarding courses, admissions, hostel, fees, exams, and placements.", fill="#DBEAFE")
-
-    # 3. Quick Suggestions Section
-    draw.text((350, 135), "💡 Quick Suggested Questions (Click to Ask):", fill="#1E40AF")
-    sug_items = [
-        "📌 What undergraduate courses are offered?",
-        "📌 What is the annual tuition fee for B.Tech?",
-        "📌 Are hostel facilities available for boys and girls?"
+    # 🕘 Recent Searches Section
+    draw.text((18, 208), "🕘 RECENT SEARCHES", fill="#0F766E")
+    recent_items = [
+        "🔍 Available Engineering Courses",
+        "🔍 College Fee Structure",
+        "🔍 Hostel Facilities",
+        "🔍 Placement Details"
     ]
-    for i, s in enumerate(sug_items):
-        sx = 350 + i * 275
-        draw.rounded_rectangle([(sx, 160), (sx + 265, 195)], radius=6, fill="#FFFFFF", outline="#CBD5E1", width=1)
-        draw.text((sx + 10, 172), s[:36] + "...", fill="#1E40AF")
+    for idx, item in enumerate(recent_items):
+        ry = 228 + idx * 32
+        draw.rounded_rectangle([(16, ry), (294, ry + 26)], radius=6, fill="#FFFFFF", outline="#E2E8F0", width=1)
+        draw.text((26, ry + 6), item, fill="#334155")
 
-    # 4. Chat Messages Area
-    draw.text((350, 215), "💬 Conversation", fill="#0F172A")
+    # 📂 Previous Conversations List
+    draw.text((18, 368), "📂 PREVIOUS CONVERSATIONS", fill="#0F766E")
+    conv_items = [
+        ("👉 Hostel Fee Structure", True),
+        ("💬 B.Tech Admissions 2026", False),
+        ("💬 Campus Recruitment Highest CTC", False)
+    ]
+    for idx, (c_title, is_active) in enumerate(conv_items):
+        cy = 388 + idx * 34
+        bg_col = "#F0FDFA" if is_active else "#FFFFFF"
+        b_col = "#14B8A6" if is_active else "#E2E8F0"
+        t_col = "#0F766E" if is_active else "#475569"
+        draw.rounded_rectangle([(16, cy), (260, cy + 28)], radius=6, fill=bg_col, outline=b_col, width=1)
+        draw.text((26, cy + 7), c_title, fill=t_col)
+        # Delete icon
+        draw.rounded_rectangle([(266, cy), (294, cy + 28)], radius=6, fill="#FFFFFF", outline="#E2E8F0", width=1)
+        draw.text((274, cy + 6), "🗑️", fill="#94A3B8")
 
-    # Message 1: Bot Welcome
-    draw.rounded_rectangle([(400, 245), (1150, 325)], radius=10, fill="#FFFFFF", outline="#E2E8F0", width=1)
-    draw.text((360, 255), "🤖", fill="#000000")
-    draw.text((420, 255), "Hello! 🎓 Welcome to the College Enquiry Chatbot.", fill="#0F172A")
-    draw.text((420, 275), "I can assist you with courses, admissions, fees, hostel rules, placements, and more.", fill="#475569")
-    draw.text((420, 295), "All answers currently represent demonstration data.", fill="#64748B")
+    # AI Engine Indicator in Sidebar
+    draw.rounded_rectangle([(16, 500), (294, 535)], radius=6, fill="#ECFDF5", outline="#A7F3D0", width=1)
+    draw.text((30, 510), "🤖 Mode: Gemini 2.5 Flash / Local NLP", fill="#047857")
 
-    # Message 2: User Query
-    draw.rounded_rectangle([(650, 345), (1110, 395)], radius=10, fill="#E0E7FF", outline="#C7D2FE", width=1)
-    draw.text((1130, 355), "🧑‍🎓", fill="#000000")
-    draw.text((670, 360), "What undergraduate courses are offered in the college?", fill="#1E1B4B")
+    # 3. Main Dashboard: Top Navigation Bar
+    draw.rounded_rectangle([(330, 16), (1180, 62)], radius=12, fill="#FFFFFF", outline="#CCFBF1", width=1)
+    draw.text((345, 28), "🏛️ VR College AI Admissions Desk • 24/7 Live", fill="#0F766E")
+    # Language Translator Dropdown
+    draw.rounded_rectangle([(810, 24), (970, 54)], radius=8, fill="#F0FDFA", outline="#99F6E4", width=1)
+    draw.text((822, 32), "🌐 Language: English ▼", fill="#0D9488")
+    # User Profile Badge
+    draw.rounded_rectangle([(980, 24), (1170, 54)], radius=15, fill="#F0FDFA", outline="#99F6E4", width=1)
+    draw.text((992, 32), "🧑‍🎓 Student Scholar • Online", fill="#047857")
 
-    # Message 3: Bot Response with Confidence Tag
-    draw.rounded_rectangle([(400, 415), (1150, 520)], radius=10, fill="#FFFFFF", outline="#E2E8F0", width=1)
-    draw.text((360, 425), "🤖", fill="#000000")
-    draw.text((420, 425), "[DEMO DATA] The college offers Bachelor of Technology (B.Tech) degrees in Computer Science,", fill="#0F172A")
-    draw.text((420, 445), "Information Technology, Electronics & Communication, Mechanical, and Civil Engineering.", fill="#0F172A")
-
+    # 4. Welcome Banner with VR Mascot (Orély Theme)
+    draw.rounded_rectangle([(330, 74), (1180, 195)], radius=16, fill="#0F766E", outline="#5EEAD4", width=1)
+    draw.text((350, 86), "🏛️ VR COLLEGE OF ENGINEERING • NAAC 'A+' INSTITUTION", fill="#5EEAD4")
+    draw.text((350, 106), "🎓 Welcome to VR College AI Campus Portal", fill="#FFFFFF")
+    draw.text((350, 130), "Your 24/7 intelligent conversational advisor for admissions, degree courses, fee structures & hostels.", fill="#E2E8F0")
     # Badges
-    draw.rounded_rectangle([(420, 475), (550, 500)], radius=6, fill="#DBEAFE")
-    draw.text((430, 480), "📂 Category: Courses", fill="#1E40AF")
+    p_items = ["🏆 NAAC 'A+'", "💼 ₹14 LPA Highest", "🎓 92% Placements", "🌟 Admissions Open"]
+    for p_i, p_t in enumerate(p_items):
+        px = 350 + p_i * 145
+        draw.rounded_rectangle([(px, 155), (px + 135, 180)], radius=6, fill=(255, 255, 255, 30))
+        draw.text((px + 8, 160), p_t, fill="#FFFFFF")
+    # Mascot Card inside Hero
+    draw.rounded_rectangle([(1040, 85), (1165, 184)], radius=12, fill=(255, 255, 255, 35), outline="#99F6E4", width=1)
+    draw.text((1085, 95), "🤖", fill="#FFFFFF")
+    draw.text((1055, 135), "VRBot Mascot", fill="#FFFFFF")
+    draw.text((1052, 155), "AI Counselor 24/7", fill="#A5F3FC")
 
-    draw.rounded_rectangle([(565, 475), (715, 500)], radius=6, fill="#DCFCE7")
-    draw.text((575, 480), "🎯 Similarity Score: 0.94", fill="#166534")
+    # 5. Quick Access Cards Row (Courses, Fees, Hostel, Placements, Admissions)
+    draw.text((330, 206), "⚡ QUICK ACCESS PORTALS (CLICK TO EXPLORE)", fill="#0F766E")
+    qa_cards = [
+        ("🎓 Courses", "B.Tech & PG"),
+        ("💰 Fee Structure", "Tuition & Aid"),
+        ("🏢 Hostel & Mess", "AC Rooms & Wi-Fi"),
+        ("💼 Placements", "14 LPA CTC"),
+        ("📋 Admissions", "Apply 2026-27")
+    ]
+    for q_i, (q_t, q_sub) in enumerate(qa_cards):
+        qx = 330 + q_i * 172
+        draw.rounded_rectangle([(qx, 226), (qx + 162, 280)], radius=10, fill="#FFFFFF", outline="#CCFBF1", width=1)
+        draw.line([(qx, 226), (qx + 162, 226)], fill="#0D9488", width=3)
+        draw.text((qx + 10, 236), q_t, fill="#0F172A")
+        draw.text((qx + 10, 256), q_sub, fill="#0F766E")
 
-    # Message 4: User Query 2
-    draw.rounded_rectangle([(750, 540), (1110, 590)], radius=10, fill="#E0E7FF", outline="#C7D2FE", width=1)
-    draw.text((1130, 550), "🧑‍🎓", fill="#000000")
-    draw.text((770, 555), "How much is the hostel fee per year?", fill="#1E1B4B")
+    # 6. Two-Column Layout (Chat Stream & Hub)
+    # Chat Column (Frosted Glass Container)
+    draw.rounded_rectangle([(330, 295), (880, 765)], radius=14, fill="#FFFFFF", outline="#CCFBF1", width=1)
+    draw.text((345, 308), "💬 Student Consultation Stream", fill="#0F766E")
 
-    # Message 5: Bot Response 2
-    draw.rounded_rectangle([(400, 610), (1150, 690)], radius=10, fill="#FFFFFF", outline="#E2E8F0", width=1)
-    draw.text((360, 620), "🤖", fill="#000000")
-    draw.text((420, 620), "[DEMO DATA] The hostel accommodation fee is approximately Rs. 60,000 per year, inclusive of mess dining charges.", fill="#0F172A")
-    draw.rounded_rectangle([(420, 650), (540, 675)], radius=6, fill="#DBEAFE")
-    draw.text((430, 655), "📂 Category: Hostel", fill="#1E40AF")
-    draw.rounded_rectangle([(555, 650), (705, 675)], radius=6, fill="#DCFCE7")
-    draw.text((565, 655), "🎯 Similarity Score: 0.88", fill="#166534")
+    # User Bubble
+    draw.rounded_rectangle([(480, 340), (865, 385)], radius=12, fill="#F0FDFA", outline="#99F6E4", width=1)
+    draw.text((495, 353), "What are the hostel fee details for boys and girls?", fill="#0F172A")
 
-    # 5. Input Box Area at bottom
-    draw.rounded_rectangle([(350, 710), (1170, 755)], radius=10, fill="#FFFFFF", outline="#CBD5E1", width=1)
-    draw.text((370, 725), "Type your question here (e.g. 'Tell me about hostel fees', 'How to apply for admission?')...", fill="#94A3B8")
-    # Send button
-    draw.rounded_rectangle([(1120, 715), (1160, 750)], radius=6, fill="#1E40AF")
-    draw.text((1132, 723), "➤", fill="#FFFFFF")
+    # Bot Bubble
+    draw.rounded_rectangle([(345, 400), (865, 520)], radius=12, fill="#FFFFFF", outline="#E2E8F0", width=1)
+    draw.line([(345, 400), (345, 520)], fill="#0D9488", width=4)
+    draw.text((360, 412), "🤖 VRBot", fill="#0D9488")
+    draw.text((360, 432), "VR College of Engineering offers separate AC & Non-AC hostels:", fill="#334155")
+    draw.text((360, 452), "• Annual Hostel & Mess Fee: Rs. 65,000 (inclusive of dining, 24/7 Wi-Fi)", fill="#1E293B")
+    draw.text((360, 472), "• Curfew: 8:30 PM (Weekdays), 9:00 PM (Weekends) with biometric security.", fill="#1E293B")
+    # Action buttons
+    draw.rounded_rectangle([(360, 492), (430, 514)], radius=4, fill="#F0FDFA", outline="#99F6E4", width=1)
+    draw.text((370, 495), "🔊 Listen", fill="#0D9488")
+    draw.text((440, 495), "👍 👎", fill="#64748B")
 
-    os.makedirs(os.path.dirname(os.path.abspath("assets/ui_preview.png")), exist_ok=True)
-    out_path = os.path.join(os.path.dirname(__file__), "assets", "ui_preview.png")
-    img.save(out_path, "PNG")
-    print(f"Generated UI Preview at {out_path}")
+    # Voice Assistant & Companion Dock
+    draw.rounded_rectangle([(345, 660), (865, 696)], radius=10, fill="#F0FDFA", outline="#99F6E4", width=1)
+    draw.text((360, 670), "✨ VRBot AI Active  •  Speak or type below", fill="#0F766E")
+    draw.rounded_rectangle([(735, 665), (855, 691)], radius=12, fill="#0D9488")
+    draw.text((750, 670), "🎙️ Voice Enquiry", fill="#FFFFFF")
+
+    # Glowing Chat Input Box
+    draw.rounded_rectangle([(345, 710), (865, 755)], radius=24, fill="#FFFFFF", outline="#2DD4BF", width=2)
+    draw.text((365, 725), "✨ Ask VRBot anything... Your college assistant is here to help!", fill="#64748B")
+    draw.ellipse([(820, 718), (855, 748)], fill="#0D9488")
+    draw.text((833, 724), "➤", fill="#FFFFFF")
+
+    # Right Column: Interactive Campus Hub
+    draw.rounded_rectangle([(895, 295), (1180, 765)], radius=14, fill="#FFFFFF", outline="#CCFBF1", width=1)
+    draw.text((910, 308), "🏛️ Campus Hub & FAQs", fill="#0F766E")
+    # Tabs
+    draw.rounded_rectangle([(910, 335), (960, 360)], radius=6, fill="#0D9488")
+    draw.text((918, 340), "FAQs", fill="#FFFFFF")
+    draw.rounded_rectangle([(968, 335), (1020, 360)], radius=6, fill="#F1F5F9")
+    draw.text((976, 340), "Apply", fill="#475569")
+    draw.rounded_rectangle([(1028, 335), (1085, 360)], radius=6, fill="#F1F5F9")
+    draw.text((1035, 340), "Staff", fill="#475569")
+    draw.rounded_rectangle([(1093, 335), (1165, 360)], radius=6, fill="#F1F5F9")
+    draw.text((1100, 340), "Gallery", fill="#475569")
+
+    # FAQ Sample items
+    hub_faqs = [
+        "💡 B.Tech CSE Eligibility & Cutoffs",
+        "💡 Annual Tuition Fee Breakdown",
+        "💡 Hostel Admission & Mess Amenities",
+        "💡 Placement Drives & Recruiters",
+        "💡 Scholarships & Fee Concessions"
+    ]
+    for h_i, h_t in enumerate(hub_faqs):
+        hy = 375 + h_i * 42
+        draw.rounded_rectangle([(910, hy), (1165, hy + 34)], radius=8, fill="#F8FAFC", outline="#E2E8F0", width=1)
+        draw.text((920, hy + 9), h_t, fill="#334155")
+
+    # Prospectus Box
+    draw.rounded_rectangle([(910, 600), (1165, 750)], radius=10, fill="#F0FDFA", outline="#99F6E4", width=1)
+    draw.text((925, 615), "📄 Official 2026 Prospectus", fill="#0F766E")
+    draw.text((925, 640), "Download complete academic curriculum,", fill="#475569")
+    draw.text((925, 660), "fee schedules, and admissions handbook.", fill="#475569")
+    draw.rounded_rectangle([(925, 690), (1150, 730)], radius=8, fill="#0D9488")
+    draw.text((950, 702), "📥 Download PDF Prospectus", fill="#FFFFFF")
+
+    # Save preview image
+    output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "ui_preview.png")
+    img.save(output_path, "PNG")
+    print(f"UI preview generated successfully at: {output_path}")
 
 if __name__ == "__main__":
     generate_ui_preview()
-

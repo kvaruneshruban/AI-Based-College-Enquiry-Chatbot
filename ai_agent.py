@@ -222,7 +222,10 @@ def resolve_followup_query(query: str, history: List[Dict[str, Any]]) -> str:
     clean_q = query.strip().lower()
 
     if not history:
-        if any(p in clean_q for p in ["explain more", "tell me more", "more details", "in detail"]):
+        if any(p in clean_q for p in [
+            "explain more", "tell me more", "more details", "in detail", "explain further",
+            "i want the list", "the list", "give the list", "show list", "give full details", "details"
+        ]):
             return "What undergraduate courses are offered?"
         return query
 
@@ -245,10 +248,10 @@ def resolve_followup_query(query: str, history: List[Dict[str, Any]]) -> str:
         if last_bot_msg and last_user_msg:
             break
 
-    # Case 0: Elaboration / Continuation ("ok explain more", "tell me more", "explain in detail", "elaborate", "more details")
+    # Case 0: Elaboration / Continuation ("ok explain more", "tell me more", "explain in detail", "elaborate", "more details", "i want the list")
     is_elaboration = bool(
-        re.search(r"^(ok\s+)?(explain\s+more|tell\s+me\s+more|elaborate|more\s+details?|details?\s+please|explain\s+further|continue|what\s+else|tell\s+me\s+everything|can\s+you\s+explain\s+more|give\s+more\s+details?|in\s+detail)\b", clean_q)
-        or clean_q in ["explain more", "ok explain more", "tell me more", "more details", "more detail", "details", "explain", "more"]
+        re.search(r"^(ok\s+)?(explain\s+more|tell\s+me\s+more|elaborate|more\s+details?|details?\s+please|explain\s+further|continue|what\s+else|tell\s+me\s+everything|can\s+you\s+explain\s+more|give\s+more\s+details?|give\s+full\s+details?|in\s+detail|i\s+want\s+(the\s+)?list|give\s+(me\s+)?(the\s+)?list|show\s+(me\s+)?(the\s+)?list|the\s+list)\b", clean_q)
+        or clean_q in ["explain more", "ok explain more", "tell me more", "more details", "more detail", "details", "explain", "more", "explain further", "i want the list", "the list", "give list", "show list", "full details"]
     )
     if is_elaboration:
         # Check specific topics based on last category or last user query first
@@ -256,7 +259,9 @@ def resolve_followup_query(query: str, history: List[Dict[str, Any]]) -> str:
         cat_lower = last_cat.lower()
         combined = (last_cat + " " + last_q + " " + last_user_msg + " " + last_bot_msg).lower()
 
-        if "college name" in cat_lower or any(k in user_lower for k in ["college name", "your college name", "name of your", "which college", "introduce"]):
+        if any(k in clean_q for k in ["list", "fee", "fees"]) and ("fee" in combined or "cost" in combined or "tuition" in combined):
+            return "What is the annual tuition fee for B.Tech?"
+        elif "college name" in cat_lower or any(k in user_lower for k in ["college name", "your college name", "name of your", "which college", "introduce"]):
             return "Can you introduce your college?"
         elif any(k in user_lower for k in ["course", "b.tech", "degree", "m.tech", "branch"]) or "courses" in cat_lower or "course" in cat_lower:
             return "What undergraduate courses are offered?"

@@ -72,7 +72,12 @@ COLLEGE_LOCATION_PATTERNS = [
 COLLEGE_INTRO_PATTERNS = [
     r"\b(about|overview\s+of|history\s+of)\s+(the|your|vr)\s*(college|institution)\b",
     r"\btell\s+me\s+about\s+(vr|the|your)?\s*college\b",
-    r"\bintroduce\s+(vr\s+college|the\s+institution)\b"
+    r"\bintroduce\s+(vr\s+college|the\s+institution)\b",
+    r"\bwho\s+(was|is)\s+(the\s+)?founder\b",
+    r"\bwho\s+founded\s+(the|your|this)?\s*(college|institution)\b",
+    r"\bwhen\s+was\s+(the|your|this)?\s*(college|institution)\s*(founded|established|started)\b",
+    r"\byear\s+of\s+establishment\b",
+    r"\bwho\s+started\s+(the|your|this)?\s*(college|institution)\b"
 ]
 
 COURSES_PATTERNS = [
