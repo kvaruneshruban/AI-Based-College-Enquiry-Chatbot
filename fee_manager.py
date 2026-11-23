@@ -159,7 +159,8 @@ FEE_TRIGGER_WORDS = [
     "cost of study", "installment", "installments", "admission fee", "registration fee",
     "hostel fee", "transport fee", "lab fee", "library fee", "exam fee",
     "fee structure", "fees structure", "fee details", "fee detail",
-    "course fee", "college fee", "annual fee", "semester fee"
+    "course fee", "college fee", "annual fee", "semester fee",
+    "கட்டணம்", "கல்விக்கட்டணம்", "செலவு", "பணம்", "ரூபாய்", "பீஸ்"
 ]
 
 
@@ -174,6 +175,10 @@ def is_fee_enquiry(query: str) -> bool:
         return False
 
     q_lower = query.strip().lower()
+
+    # Tamil fee detection
+    if any(k in q_lower for k in ["கட்டணம்", "கல்விக்கட்டணம்", "பீஸ்"]):
+        return True
 
     # Exclude questions that are explicitly asking about college name, location, or general identity
     if any(k in q_lower for k in ["college name", "name of college", "which college", "where is", "located", "address"]):
@@ -213,7 +218,8 @@ def matches_alias(query: str, aliases: list) -> bool:
 def generate_smart_fee_response(
     query: str,
     category_filter: Optional[str] = None,
-    last_image: Optional[str] = None
+    last_image: Optional[str] = None,
+    language: str = "English"
 ) -> Dict[str, Any]:
     """
     Generates the fee response strictly following the mandatory priority and format:
@@ -221,13 +227,46 @@ def generate_smart_fee_response(
     2. Displays the specific requested fee details FIRST.
     3. Displays the Complete College Fee Structure LAST.
     4. Dynamically selects relevant campus imagery with anti-repetition protection.
+    Supports English and Tamil dynamically.
     """
     from image_manager import get_dynamic_visual
 
     q_lower = query.strip().lower()
 
-    specific_answer = ""
-    is_hostel = (category_filter and category_filter.lower() == "hostel") or any(k in q_lower for k in ["hostel", "hostal", "hostle"])
+    is_hostel = (category_filter and category_filter.lower() == "hostel") or any(k in q_lower for k in ["hostel", "hostal", "hostle", "விடுதி"])
+
+    if language == "Tamil":
+        from ai_agent import get_smart_fee_response
+        full_friendly_response = get_smart_fee_response(query, "", language="Tamil")
+        if is_hostel:
+            raw_matched_answer = "வி.ஆர் பொறியியல் கல்லூரி விடுதி கட்டணம் ஆண்டிற்கு ₹80,000 முதல் ₹1,20,000 வரை (உணவு மற்றும் அறை உட்பட)."
+            assigned_cat = "Hostel"
+            matched_q = "விடுதி கட்டண விவரங்கள் என்ன?"
+        else:
+            raw_matched_answer = "வி.ஆர் பொறியியல் கல்லூரி கட்டண விவரங்கள்: இளங்கலை பொறியியல் (₹95,000 முதல் ₹1,50,000 வரை), சேர்க்கை கட்டணம் ₹5,000, விடுதி கட்டணம் ₹80,000–₹1,20,000."
+            assigned_cat = "Fees"
+            matched_q = "முழுமையான கல்லூரி கட்டண விவரங்கள் என்ன?"
+
+        visual_data = get_dynamic_visual(
+            query=query,
+            answer=full_friendly_response,
+            category_hint=assigned_cat,
+            last_image=last_image
+        )
+        return {
+            "answer": raw_matched_answer,
+            "friendly_answer": full_friendly_response,
+            "matched_question": matched_q,
+            "category": assigned_cat,
+            "confidence": 1.0,
+            "status": "matched",
+            "is_fuzzy": False,
+            "ai_generated": False,
+            "visual": {
+                "image": visual_data["image"],
+                "caption": visual_data["caption"]
+            }
+        }
 
     # Priority Check 1: Hostel (or Hostel Category Filter)
     if is_hostel:

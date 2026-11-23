@@ -10,13 +10,16 @@ Handles:
 import os
 import re
 import datetime
+import sqlite3
 import pandas as pd
 from typing import Dict, Any, List, Optional
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LEADS_FILE = os.path.join(BASE_DIR, "leads.csv")
+APPLICATIONS_FILE = os.path.join(BASE_DIR, "applications.csv")
 UNANSWERED_FILE = os.path.join(BASE_DIR, "unanswered_queries.csv")
 FEEDBACK_FILE = os.path.join(BASE_DIR, "feedback_logs.csv")
+DB_FILE = os.path.join(BASE_DIR, "chat_history.db")
 
 
 # -------------------------------------------------------------
@@ -100,6 +103,206 @@ def update_lead_status(ref_no: str, new_status: str) -> bool:
         df.to_csv(LEADS_FILE, index=False)
         return True
     return False
+
+
+# -------------------------------------------------------------
+# 1B. Formal Admission Applications Management
+# -------------------------------------------------------------
+def init_applications_table(db_path: Optional[str] = None) -> None:
+    """Initializes the admission_applications SQLite table if not exists."""
+    path = db_path or DB_FILE
+    try:
+        with sqlite3.connect(path, timeout=5.0) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS admission_applications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ref_no TEXT UNIQUE NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    student_name TEXT NOT NULL,
+                    dob TEXT NOT NULL,
+                    gender TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    phone TEXT NOT NULL,
+                    parent_name TEXT NOT NULL,
+                    address TEXT NOT NULL,
+                    marks_12th TEXT NOT NULL,
+                    department TEXT NOT NULL,
+                    admission_category TEXT NOT NULL,
+                    course_preference TEXT NOT NULL,
+                    status TEXT DEFAULT 'Submitted'
+                );
+            """)
+    except Exception:
+        pass
+
+
+def get_applications_df() -> pd.DataFrame:
+    """Reads applications.csv or returns an empty structured DataFrame."""
+    cols = [
+        "timestamp", "ref_no", "student_name", "dob", "gender", "email",
+        "phone", "parent_name", "address", "marks_12th", "department",
+        "admission_category", "course_preference", "status"
+    ]
+    if not os.path.exists(APPLICATIONS_FILE):
+        return pd.DataFrame(columns=cols)
+    try:
+        df = pd.read_csv(APPLICATIONS_FILE)
+        for col in cols:
+            if col not in df.columns:
+                df[col] = ""
+        return df
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+
+def save_admission_application(
+    student_name: str,
+    dob: str,
+    gender: str,
+    email: str,
+    phone: str,
+    parent_name: str,
+    address: str,
+    marks_12th: str,
+    department: str,
+    admission_category: str,
+    course_preference: str,
+    db_path: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Validates and persists a formal college admission application.
+    Saves to:
+    1. applications.csv (comprehensive fields)
+    2. leads.csv (for Staff Desk compatibility)
+    3. chat_history.db (SQLite database)
+    Returns:
+    dict: {"status": "success" | "error", "message": str, "ref_no": str, "data": dict}
+    """
+    clean_name = (student_name or "").strip()
+    clean_dob = (str(dob) or "").strip()
+    clean_gender = (gender or "").strip()
+    clean_email = (email or "").strip().lower()
+    clean_phone = re.sub(r"[^\d+]", "", (phone or "").strip())
+    clean_parent = (parent_name or "").strip()
+    clean_address = (address or "").strip()
+    clean_marks = (marks_12th or "").strip()
+    clean_dept = (department or "").strip()
+    clean_category = (admission_category or "").strip()
+    clean_course = (course_preference or "").strip()
+
+    # 1. Full Name Validation
+    if not clean_name or len(clean_name) < 2:
+        return {"status": "error", "message": "Please enter student's valid full name (at least 2 characters)."}
+
+    # 2. Date of Birth Validation
+    if not clean_dob:
+        return {"status": "error", "message": "Please enter or select a valid Date of Birth."}
+
+    # 3. Gender Validation
+    if not clean_gender or clean_gender in ["Select Gender", "Select"]:
+        return {"status": "error", "message": "Please select student's gender."}
+
+    # 4. Email Validation
+    email_pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+    if not clean_email or not re.match(email_pattern, clean_email):
+        return {"status": "error", "message": "Please enter a valid email address (e.g., student@example.com)."}
+
+    # 5. Mobile Number Validation
+    digits_phone = re.sub(r"\D", "", clean_phone)
+    if len(digits_phone) < 10:
+        return {"status": "error", "message": "Please enter a valid 10-digit mobile number."}
+
+    # 6. Parent / Guardian Name Validation
+    if not clean_parent or len(clean_parent) < 2:
+        return {"status": "error", "message": "Please enter Parent / Guardian Name (at least 2 characters)."}
+
+    # 7. Residential Address Validation
+    if not clean_address or len(clean_address) < 5:
+        return {"status": "error", "message": "Please enter complete residential address."}
+
+    # 8. Marks Validation
+    if not clean_marks:
+        return {"status": "error", "message": "Please enter 12th Standard / Diploma marks or percentage."}
+
+    # 9. Department Validation
+    if not clean_dept or clean_dept in ["Select Department", "Select"]:
+        return {"status": "error", "message": "Please select a preferred department."}
+
+    # 10. Admission Category Validation
+    if not clean_category or clean_category in ["Select Category", "Select"]:
+        return {"status": "error", "message": "Please select an admission category."}
+
+    # 11. Course Preference Validation
+    if not clean_course or clean_course in ["Select Course Preference", "Select"]:
+        return {"status": "error", "message": "Please select a course preference."}
+
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ref_seed = int(datetime.datetime.now().timestamp() * 1000 % 100000)
+    ref_no = f"VRCE-APP-{datetime.datetime.now().strftime('%y')}-{ref_seed:05d}"
+
+    new_record = {
+        "timestamp": timestamp,
+        "ref_no": ref_no,
+        "student_name": clean_name,
+        "dob": clean_dob,
+        "gender": clean_gender,
+        "email": clean_email,
+        "phone": clean_phone,
+        "parent_name": clean_parent,
+        "address": clean_address,
+        "marks_12th": clean_marks,
+        "department": clean_dept,
+        "admission_category": clean_category,
+        "course_preference": clean_course,
+        "status": "Submitted"
+    }
+
+    # A. Save to applications.csv
+    try:
+        df_app = get_applications_df()
+        df_app = pd.concat([df_app, pd.DataFrame([new_record])], ignore_index=True)
+        df_app.to_csv(APPLICATIONS_FILE, index=False)
+    except Exception:
+        pass
+
+    # B. Save into leads.csv for compatibility with Staff Desk
+    lead_msg = (
+        f"Formal Application [{ref_no}] | DOB: {clean_dob} | Gender: {clean_gender} | "
+        f"Parent: {clean_parent} | Cat: {clean_category} | Addr: {clean_address}"
+    )
+    save_admission_lead(
+        name=clean_name,
+        email=clean_email,
+        phone=clean_phone,
+        course=f"{clean_dept} ({clean_course})",
+        cutoff=clean_marks,
+        message=lead_msg
+    )
+
+    # C. Save into SQLite database
+    path = db_path or DB_FILE
+    try:
+        init_applications_table(path)
+        with sqlite3.connect(path, timeout=5.0) as conn:
+            conn.execute("""
+                INSERT INTO admission_applications (
+                    ref_no, timestamp, student_name, dob, gender, email, phone,
+                    parent_name, address, marks_12th, department, admission_category,
+                    course_preference, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ref_no, timestamp, clean_name, clean_dob, clean_gender, clean_email, clean_phone,
+                clean_parent, clean_address, clean_marks, clean_dept, clean_category, clean_course, "Submitted"
+            ))
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "message": "College Admission Application Submitted Successfully!",
+        "ref_no": ref_no,
+        "data": new_record
+    }
 
 
 # -------------------------------------------------------------

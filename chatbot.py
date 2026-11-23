@@ -24,25 +24,34 @@ from ai_agent import (
     get_topic_visual
 )
 
-# Standard patterns for conversational intents
+# Standard patterns for conversational intents (English and Tamil)
 GREETING_PATTERNS = [
     r"^(hi|hello|hey|heya|howdy)\b",
     r"^good\s+(morning|afternoon|evening|day)\b",
-    r"^(greetings|namaste|welcome|vanakkam)\b"
+    r"^(greetings|namaste|welcome|vanakkam)\b",
+    r"\b(வணக்கம்|நமஸ்காரம்|காலை\s+வணக்கம்|மாலை\s+வணக்கம்|ஹலோ)\b"
 ]
 
 GRATITUDE_PATTERNS = [
-    r"\b(thank\s+you|thanks|thank\s+u|thx|much\s+appreciated|appreciate\s+it|nandri)\b"
+    r"\b(thank\s+you|thanks|thank\s+u|thx|much\s+appreciated|appreciate\s+it|nandri)\b",
+    r"\b(நன்றி|மிக்க\s+நன்றி|ரொம்ப\s+நன்றி)\b"
 ]
 
 FAREWELL_PATTERNS = [
-    r"\b(bye|goodbye|see\s+you|have\s+a\s+good\s+day|cya)\b"
+    r"\b(bye|goodbye|see\s+you|have\s+a\s+good\s+day|cya)\b",
+    r"\b(விடைபெறுகிறேன்|போய்\s+வருகிறேன்|நன்றி\s+வணக்கம்|பை)\b"
 ]
 
 DEFAULT_FALLBACK_MESSAGE = (
     "I am sorry, but I couldn't find verified information regarding your enquiry in the college database. "
     "Please try rephrasing your question or contact the VR College of Engineering Admissions / Administrative Desk at "
     "+91 98765 43210 or email admissions@vrcollege.edu. [DEMO DATA]"
+)
+
+DEFAULT_FALLBACK_MESSAGE_TAMIL = (
+    "மன்னிக்கவும், தங்களின் கேள்விக்கான சரிபார்க்கப்பட்ட தகவல் கல்லூரி தரவுத்தளத்தில் கிடைக்கவில்லை. "
+    "தயவுசெய்து கேள்வியை வேறு விதமாக கேட்கவும் அல்லது வி.ஆர் பொறியியல் கல்லூரி சேர்க்கை உதவி மையத்தைத் தொடர்பு கொள்ளவும்: "
+    "+91 98765 43210 அல்லது மின்னஞ்சல் admissions@vrcollege.edu."
 )
 
 
@@ -101,6 +110,27 @@ def preprocess_text(text: str) -> str:
     }
     for pat, rep in typo_replacements.items():
         text = re.sub(pat, rep, text)
+
+    # Tamil academic keyword mapping to English tokens for high-recall TF-IDF matching
+    tamil_to_english = [
+        (r"பாடப்பிரிவு(கள்)?|படிப்புகள்|துறைகள்|பாடங்கள்|பாடப்பிரிவுகள்", "course undergraduate b.tech programs degree"),
+        (r"கட்டணம்|கட்டணங்கள்|கல்விக்கட்டணம்|செலவு|பணம்|பீஸ்", "fee tuition fees structure installment"),
+        (r"விடுதி|ஹாஸ்டல்|தங்குமிடம்|உணவுக்கூடம்", "hostel accommodation rooms mess boys girls"),
+        (r"சேர்க்கை|அட்மிஷன்|விண்ணப்பம்|விண்ணப்பிக்க", "admission eligibility apply criteria documents"),
+        (r"தகுதி|மதிப்பெண்|கட்-ஆஃப்|கட்ஆஃப்", "eligibility cutoff marks criteria"),
+        (r"வேலைவாய்ப்பு|வேலை|பிளேஸ்மென்ட்|சம்பளம்", "placement recruitment companies package ctc highest"),
+        (r"நூலகம்|லைப்ரரி|புத்தகங்கள்", "library books timings hours central"),
+        (r"உதவித்தொகை|ஸ்காலர்ஷிப்|சலுகை", "scholarship financial concession merit aid"),
+        (r"பேருந்து|போக்குவரத்து|பஸ்", "transport bus route connectivity"),
+        (r"ஆய்வகம்|லேப்", "laboratory practical lab modern"),
+        (r"விளையாட்டு|மைதானம்", "sports games facilities indoor outdoor"),
+        (r"தொடர்பு|முகவரி|தொலைபேசி|எண்", "contact phone address email office desk"),
+        (r"கல்லூரி\s*பெயர்|பெயர்\s*என்ன", "what is your college name institution")
+    ]
+    for pat, rep in tamil_to_english:
+        if re.search(pat, text):
+            text += " " + rep
+
     return text
 
 
@@ -157,11 +187,12 @@ class CollegeChatbot:
         user_query: str,
         category_filter: Optional[str] = None,
         conversation_history: Optional[List[Dict[str, Any]]] = None,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
+        language: str = "English"
     ) -> Dict[str, Any]:
         """
         Processes a student's natural language enquiry, supports multi-turn context
-        and follow-ups, and returns the response.
+        and follow-ups, and returns the response in English or Tamil.
 
         Returns:
             dict: {
@@ -177,6 +208,7 @@ class CollegeChatbot:
         """
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         history = conversation_history or []
+        is_tamil = (language == "Tamil")
 
         # Extract last image displayed from history to strictly prevent repetition
         last_image = None
@@ -190,8 +222,8 @@ class CollegeChatbot:
 
         # 1. Validate empty/invalid input
         if not user_query or not user_query.strip():
-            msg = "Please enter a valid question or enquiry so I can assist you."
-            friendly = generate_local_friendly_response(user_query, msg, None, None, "invalid", history)
+            msg = "தயவுசெய்து சரியான கேள்வி அல்லது விசாரணையை உள்ளிடவும்." if is_tamil else "Please enter a valid question or enquiry so I can assist you."
+            friendly = generate_local_friendly_response(user_query, msg, None, None, "invalid", history, language=language)
             response = {
                 "answer": msg,
                 "friendly_answer": friendly,
@@ -210,12 +242,18 @@ class CollegeChatbot:
 
         # 2. Check for Greetings
         if self._is_greeting(cleaned_query):
-            ans = (
-                "Hello! Welcome to the VR College of Engineering AI Enquiry Assistant. "
-                "How can I help you today? You can ask me about courses, admissions, fees, "
-                "hostel facilities, placements, and more!"
-            )
-            friendly = generate_local_friendly_response(cleaned_query, ans, "Greeting", None, "greeting", history)
+            if is_tamil:
+                ans = (
+                    "வணக்கம்! வி.ஆர் பொறியியல் கல்லூரி (VR College of Engineering) AI உதவி மையத்திற்கு அன்புடன் வரவேற்கிறோம். "
+                    "இன்று உங்களுக்கு எவ்வாறு உதவ வேண்டும்? பாடப்பிரிவுகள், சேர்க்கை, கட்டணம், விடுதி மற்றும் வேலைவாய்ப்பு பற்றி என்னிடம் கேட்கலாம்!"
+                )
+            else:
+                ans = (
+                    "Hello! Welcome to the VR College of Engineering AI Enquiry Assistant. "
+                    "How can I help you today? You can ask me about courses, admissions, fees, "
+                    "hostel facilities, placements, and more!"
+                )
+            friendly = generate_local_friendly_response(cleaned_query, ans, "Greeting", None, "greeting", history, language=language)
             response = {
                 "answer": ans,
                 "friendly_answer": friendly,
@@ -232,11 +270,17 @@ class CollegeChatbot:
 
         # 3. Check for Gratitude / Thank you
         if self._is_gratitude(cleaned_query):
-            ans = (
-                "You're very welcome! Feel free to ask if you have any more questions about VR College of Engineering. "
-                "Best of luck with your academic journey!"
-            )
-            friendly = generate_local_friendly_response(cleaned_query, ans, "Gratitude", None, "gratitude", history)
+            if is_tamil:
+                ans = (
+                    "மிக்க மகிழ்ச்சி! வி.ஆர் பொறியியல் கல்லூரி குறித்து மேலும் கேள்விகள் இருந்தால் தயங்காமல் கேளுங்கள். "
+                    "உங்கள் கல்விப் பயணம் சிறக்க எனது மனமார்ந்த வாழ்த்துகள்!"
+                )
+            else:
+                ans = (
+                    "You're very welcome! Feel free to ask if you have any more questions about VR College of Engineering. "
+                    "Best of luck with your academic journey!"
+                )
+            friendly = generate_local_friendly_response(cleaned_query, ans, "Gratitude", None, "gratitude", history, language=language)
             response = {
                 "answer": ans,
                 "friendly_answer": friendly,
@@ -253,8 +297,11 @@ class CollegeChatbot:
 
         # 4. Check for Farewell
         if self._is_farewell(cleaned_query):
-            ans = "Goodbye! Have a wonderful day ahead. Reach out anytime if you need more information."
-            friendly = generate_local_friendly_response(cleaned_query, ans, "Farewell", None, "farewell", history)
+            if is_tamil:
+                ans = "நன்றி மற்றும் விடைபெறுகிறேன்! இனிய நாளாக அமையட்டும். கூடுதல் தகவல்கள் தேவைப்படும் போது எப்போதும் தொடர்பு கொள்ளலாம்."
+            else:
+                ans = "Goodbye! Have a wonderful day ahead. Reach out anytime if you need more information."
+            friendly = generate_local_friendly_response(cleaned_query, ans, "Farewell", None, "farewell", history, language=language)
             response = {
                 "answer": ans,
                 "friendly_answer": friendly,
@@ -286,7 +333,7 @@ class CollegeChatbot:
             detected_intent = classify_intent(resolved_query)
 
         if detected_intent != Intent.UNKNOWN and detected_intent != Intent.FEE_STRUCTURE:
-            intent_res = get_intent_response(detected_intent, cleaned_query)
+            intent_res = get_intent_response(detected_intent, cleaned_query, language=language)
             if intent_res:
                 intent_res["visual"] = get_topic_visual(intent_res["category"], intent_res["friendly_answer"], last_image=last_image)
                 self._log_interaction(
@@ -306,7 +353,7 @@ class CollegeChatbot:
 
         if is_fee:
             fee_target_query = resolved_query if is_fee_enquiry(resolved_query) else cleaned_query
-            fee_res = generate_smart_fee_response(fee_target_query, category_filter=category_filter, last_image=last_image)
+            fee_res = generate_smart_fee_response(fee_target_query, category_filter=category_filter, last_image=last_image, language=language)
             self._log_interaction(
                 timestamp,
                 f"Len: {len(cleaned_query)} chars",
@@ -390,7 +437,8 @@ class CollegeChatbot:
                     user_query=cleaned_query,
                     grounded_facts=grounded_facts,
                     history=history,
-                    api_key=api_key
+                    api_key=api_key,
+                    language=language
                 )
                 if llm_res:
                     friendly_answer = llm_res
@@ -403,7 +451,8 @@ class CollegeChatbot:
                     category=cat,
                     matched_question=matched_q,
                     status="matched",
-                    history=history
+                    history=history,
+                    language=language
                 )
 
             response = {
@@ -428,17 +477,19 @@ class CollegeChatbot:
             # Query not resolved: log into unanswered queries
             log_unanswered_query(cleaned_query, best_score, category_filter)
 
+            fallback_msg = DEFAULT_FALLBACK_MESSAGE_TAMIL if is_tamil else DEFAULT_FALLBACK_MESSAGE
             friendly_fallback = generate_local_friendly_response(
                 user_query=cleaned_query,
-                raw_answer=DEFAULT_FALLBACK_MESSAGE,
+                raw_answer=fallback_msg,
                 category=None,
                 matched_question=None,
                 status="fallback",
-                history=history
+                history=history,
+                language=language
             )
 
             response = {
-                "answer": DEFAULT_FALLBACK_MESSAGE,
+                "answer": fallback_msg,
                 "friendly_answer": friendly_fallback,
                 "matched_question": None,
                 "category": None,
